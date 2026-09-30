@@ -12,7 +12,7 @@ Version 1 kept every stored value and only changed how the system reads it (7-bi
 
 ## The model
 
-As if the Palm had been shipped with an epoch of **1 January *S*** instead of 1904 (*S* = start year, 1904…1972 in steps of 4, default 1940):
+As if the Palm had been shipped with an epoch of **1 January *S*** instead of 1904 (*S* = start year, 1904…1972 in steps of 4, default 1932; 1940 in 2.0.0-beta.1):
 
 - The clock counts seconds since *S*-01-01 (stored value = real time − *D* days, *D* = days from 1904-01-01 to *S*-01-01).
 - A stored `DateType` year counts from *S* (2032 with *S* = 1940 is 92).

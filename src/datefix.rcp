@@ -39,7 +39,7 @@ BEGIN
   LABEL "the start to a year of your choice." AUTOID AT (4 PrevBottom)
 
   LABEL "Start year:" AUTOID AT (4 56) FONT 1
-  POPUPTRIGGER "1940" ID mainFormYearTrigger AT (62 56 AUTO AUTO) LEFTANCHOR
+  POPUPTRIGGER "1932" ID mainFormYearTrigger AT (62 56 AUTO AUTO) LEFTANCHOR
   LIST "1904" "1908" "1912" "1916" "1920" "1924" "1928" "1932" "1936" "1940" "1944" "1948" "1952" "1956" "1960" "1964" "1968" "1972" ID mainFormYearList AT (62 56 36 110) VISIBLEITEMS 10 NONUSABLE
   POPUPLIST ID mainFormYearTrigger mainFormYearList
 

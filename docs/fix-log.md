@@ -26,9 +26,9 @@ A small probe (`ClockProbe`, not part of this repository) on the T3, clock set t
 
 In the emulator (`DateProbe`): every value above `maxSeconds` up to `0xFFFFFFFF` converts to 2031-12-31 23:59:59, `TimDateTimeToSeconds(2032-01-01)` returns `0xF0C3F000` (linear, no clamp), and the date dialog (`SelectDay`) cannot go past 2031 (photo of the T3 "Datum einstellen" dialog stuck at December 2031).
 
-## 2. Choosing the window: 1940–2067
+## 2. Choosing the window: 1940–2067 (default later changed to 1932, see 19)
 
-The 7-bit year can only name 128 years. Moving the window keeps all values of the most likely existing data (1940…2031) bit for bit and gives the unused values 0…35 (1904…1939) the years 2032…2067. The user chose 1940–2067; dates before 1940 are not needed.
+The 7-bit year can only name 128 years. Moving the window keeps all values of the most likely existing data (1940…2031) bit for bit and gives the unused values 0…35 (1904…1939) the years 2032…2067. The user chose 1940–2067 at first; dates before 1940 are not needed.
 
 - **Days:** 1904 → 1940 = 13,149 days; 128 years = 46,752 days. 1904–1939 and 2032–2067 have the same leap years (every fourth year, no century in between), so month lengths are identical and only weekdays shift.
 - **Seconds:** 1904 → 1940 = 1,136,073,600 s. A clock value below that is read as wrapped past 2³² = 49,710 days + 23,296 s (2040-02-06 06:28:16). The seconds window thus covers 1940-01-01 … 2076-02-06.
@@ -297,3 +297,9 @@ The standard Datebook database is converted like before. The extra database of D
 The week and year views never call a date formatting function (checked with *Show Trace*), so there is nothing DateFix can convert at the API level; a global hook on `StrIToA` would rewrite every number between 1904 and 2031 (and cannot tell the two-digit year 26 from day 26).
 
 **Decision (2026-09-30): a patch table per application version, after the first release.** For a known version (first: Date Book+ 3.0H, code resources 1-4 of `DateBk3h`) DateFix would know the exact call sites that draw a year (caller address inside the application's code resource -> offset) and convert only there: no side effects, but work per application and version; the table is meant to be extended by the community. Sketch: a `StrIToA` wrapper (68k route) that looks at `__builtin_return_address(0)`, finds the code resource of the running application (`SysCurAppDatabase`) and compares offset and value with the table; the call sites are found by recording distinct callers of `StrIToA` per view (value, caller, count) in the trace ring. Until then: documented limitation, the standard Date Book is right in every view.
+
+## 19. Default start year 1932 (after the 2.0.0-beta.1 discussion)
+
+Reason: **28 years = 10,227 days = exactly 1,461 weeks**, and for 1901–2099 the leap-year pattern repeats every 28 years. With an offset of 28 (start year 1932, window 1932–2059) or 56 (1960, window 1960–2087) a date has the **same weekday and the same leap-year status** in the internal and the real calendar. The default 1940 (offset 36 = 13,149 days = 3 days off) had to patch the weekday everywhere; with 1932 an application doing its own day arithmetic is right even where DateFix does not reach it. Only the *year shown* remains to be patched. The weekday patch stays in for the other start years.
+
+Only fresh *Enable* runs use the new default; a device enabled with 1940 keeps its stored start year (*Options → Prepare Update*, then HotSync the new version). The price: dates before 1932 instead of before 1940 cannot be represented.

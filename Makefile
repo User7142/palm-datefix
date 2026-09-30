@@ -1,5 +1,5 @@
 #
-# DateFix - moves the Palm OS date window to 1940..2067
+# DateFix - moves the Palm OS date window to 1932..2059
 #
 # make          -> build/DateFix.prc
 # make test     -> host unit tests of the calendar arithmetic

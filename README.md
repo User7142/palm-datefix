@@ -2,7 +2,7 @@
 
 **Keep your Palm working after 31 December 2031.**
 
-Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clock resets, the Calendar cannot go forward, and appointments in 2032 crash applications. DateFix moves the start of Palm OS's date counting from 1904 to a year you choose (default **1940**), so a Palm keeps a real, working calendar and clock for another 128 years (**1940 – 2067**).
+Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clock resets, the Calendar cannot go forward, and appointments in 2032 crash applications. DateFix moves the start of Palm OS's date counting from 1904 to a year you choose (default **1932**), so a Palm keeps a real, working calendar and clock for another 128 years (**1932 – 2059**).
 
 > **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
@@ -14,19 +14,19 @@ Palm OS stores a date in a 7-bit year (1904 + 0…127) and counts the clock in s
 
 The basic trick is not new: run the Palm's clock some decades in the past and add the offset whenever a year is shown. [NaivePalmdayMitigation](https://github.com/Tavisco/NaivePalmdayMitigation) by Tavisco (2024, Palm OS 3.5 - 4.x, for HackMaster/X-Master) does it with an offset of 56 years, by hand. DateFix takes the same idea and automates and extends it:
 
-- it **moves the clock itself**, as if the Palm had been shipped with the counter starting in 1940, so the clock stays below the limit for 128 years and **survives a reset**;
+- it **moves the clock itself**, as if the Palm had been shipped with the counter starting in 1932, so the clock stays below the limit for 128 years and **survives a reset**;
 - the stored dates (appointments, tasks, birthdays, expenses) are **converted once**, with a backup;
 - it patches more of the date API (the weekday and all the year formatting functions, the date picker) and runs on **Palm OS 5** as well as 3.5 - 4.x;
 - applications see an ordinary, gap-free calendar of "internal" years 1904…2031; only what differs from reality is patched: the **weekday** and the **year shown to the user**.
 
 The limits are the same as for any such fix: the packed date keeps its 7-bit year (the window is 128 years), and applications that draw the year themselves, instead of calling the system, need patches of their own (see [Known limitations](#known-limitations)).
 
-The start year can be any of 1904, 1908, … 1972 (steps of four, so leap years stay aligned). The default 1940 gives 1940 – 2067. With 1960 the offset is exactly 56 years, like Tavisco's: 56 years are two 28-year cycles, so weekdays match and DateFix's weekday patches become no-ops.
+The start year can be any of 1904, 1908, … 1972 (steps of four, so leap years stay aligned). The default 1932 gives 1932 – 2059. It is 28 years after 1904, and 28 years are 10,227 days, exactly 1,461 weeks (the leap-year pattern of 1901 – 2099 repeats every 28 years), so every date has the same weekday internally and in reality, and DateFix's weekday patches become no-ops. An application doing its own day arithmetic is then right without any patch; only the year it shows remains. 1960 (offset 56, like Tavisco's) has the same property.
 
 ## Before you start
 
 - **Make a HotSync backup** and, if the device has a card slot, **insert an SD card**: DateFix copies the databases it is about to change to `/PALM/DateFix` on the card first.
-- Enabling **converts your stored dates** (every year moves by *start year − 1904*). Dates before the start year cannot be represented and are set to its first year (DateFix tells you how many). **Birthdays or appointments before 1940 are affected.**
+- Enabling **converts your stored dates** (every year moves by *start year − 1904*). Dates before the start year cannot be represented and are set to its first year (DateFix tells you how many). **Birthdays or appointments before 1932 are affected.**
 - **Emergency exit:** a soft reset while holding the navigator **up** button (a "no notify" reset) starts the Palm without DateFix. Then open DateFix and tap **Disable**, or delete it.
 - Palm OS **below 3.5** is not supported. DateFix checks this *before* it converts anything.
 

@@ -51,7 +51,7 @@ UInt32 PceNativeCall(NativeFuncType *nativeFuncP, void *userDataP)
 #define EPOCH_YEAR          1904        // Palm OS
 #define MIN_START_YEAR      1904
 #define MAX_START_YEAR      1972        // window ends 2099, before 2100
-#define DEFAULT_START_YEAR  1940
+#define DEFAULT_START_YEAR  1932
 #define DAYS_PER_4_YEARS    1461UL      // no century year in 1904..2099
 #define SECONDS_PER_DAY     86400UL
 #define WINDOW_DAYS         46752UL     // 128 years
