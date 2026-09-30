@@ -6,7 +6,7 @@ Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clo
 
 > **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
-**Download:** [DateFix-2.0.0-beta.1.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
+**Download:** [DateFix-2.0.0-beta.2.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
 
 ## The idea, and credit
 
