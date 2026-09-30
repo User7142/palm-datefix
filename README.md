@@ -6,6 +6,8 @@ Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clo
 
 > **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
+**Download:** [DateFix-2.0.0-beta.1.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
+
 ## What makes it different
 
 Palm OS stores a date in a 7-bit year (1904 + 0…127) and counts the clock in seconds since 1 January 1904. The hardware clock keeps running past 2031, only the conversion to a date stops. A fix that merely changes what is *displayed* leaves every application that does its own date arithmetic broken.
@@ -82,7 +84,7 @@ On **Palm OS 5** the system is native ARM code and 68k applications run in the P
 
 On **Palm OS 3.5 – 4.x** the functions are 68k code and their traps are replaced directly with `SysSetTrapAddress`.
 
-Internal and real years have the same leap years (the offset is a multiple of four and the window stays below 2100), so month lengths and day counts need no change. The [fix log](docs/fix-log.md) documents the whole investigation, including dead ends; [docs/plan-epoch.md](docs/plan-epoch.md) the design.
+Internal and real years have the same leap years (the offset is a multiple of four and the window stays below 2100), so month lengths and day counts need no change. The [article](https://palm2000.com/articles/49) explains it step by step, with photos; the [fix log](docs/fix-log.md) documents the whole investigation, including dead ends; [docs/plan-epoch.md](docs/plan-epoch.md) the design.
 
 ## Building
 
