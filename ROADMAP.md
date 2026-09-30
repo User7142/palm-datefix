@@ -6,7 +6,7 @@ What is not done yet, roughly in order.
 
 - **Scenario tests**: a reminder set in 2031 for 2032, reading an event from 2025 when the clock is in 2033, the World Clock, time-dependent games. The arithmetic behind all of them is covered by the host tests and the emulators; nobody has run them on a device.
 - **Other Palm OS 5 devices** (T5, TX, LifeDrive, Zire 31/72, Clié NX/UX): expected to work, not confirmed. See *Tested devices* in the README.
-- **Rollover on an m515** with the clock running (the emulator's Dragonball clock cannot be set like the Tungsten E3's).
+- **Rollover on an m515** with the clock running (the emulator's Dragonball clock cannot be set like the Tungsten E2's).
 - **Backup on a real card** (`/PALM/DateFix`) on both Palm OS generations.
 
 ## Known gaps

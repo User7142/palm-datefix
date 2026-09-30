@@ -63,7 +63,7 @@ The original databases are **not** touched on the card; `/PALM/DateFix` holds co
 |---|---|---|
 | Tungsten T3 | 5.2.1 | works: rollover 2031 → 2032, Calendar both ways, date picker, reset |
 | Palm m515 | 4.1 | works: conversion, soft reset keeps the patch |
-| Tungsten E3 (emulator) | 5.4 | works |
+| Tungsten E2 (emulator) | 5.4 | works |
 | Palm m515 (emulator) | 4.1 | works |
 | Handspring Visor | 3.5.2H3 | Date Book works; Date Book+ partly (see limitations) |
 

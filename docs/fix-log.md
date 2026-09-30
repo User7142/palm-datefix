@@ -5,7 +5,7 @@ A chronological record of how DateFix was built: what was measured, what was con
 Test devices:
 
 - **Tungsten T3**, Palm OS 5.2.1, with palmOne's "T3 DIA Compatibility Update"
-- **CloudpilotEmu** with the "Tungsten E3" ROM (Dmitry Grinberg's 320×480 build of the Tungsten E2, Palm OS 5.4)
+- **CloudpilotEmu** with the ROM `CloudPilot-Tungsten-E3v2` (Dmitry Grinberg's 320×480 build of the Tungsten E2, Palm OS 5.4; CloudpilotEmu lists it as "Tungsten E2", but there never was such a device - the emulated machine is a Tungsten E2)
 
 ---
 
@@ -44,7 +44,7 @@ On Palm OS 5 the system is native ARM code; 68k applications run in the PACE emu
 4E4F 07FE  <32-bit native address, little-endian>     TRAP #15 / call native
 ```
 
-The native address is a Thumb shim that reads the 68k arguments, calls the real function, and converts the result back. Disassembled from the E3 ROM (`TimSecondsToDateTime`, trap `A0FC`):
+The native address is a Thumb shim that reads the 68k arguments, calls the real function, and converts the result back. Disassembled from the E2 ROM (`TimSecondsToDateTime`, trap `A0FC`):
 
 ```
 2042c1be  push  {r0-r5, r7, lr}
@@ -61,9 +61,9 @@ and `0x20450d60` is a veneer into a module export table:
 20450d64  ldr  pc, [ip, #0x92c]   ; entry 587
 ```
 
-This is the Palm OS 5 cross-module call convention: `r9` points below a list of export tables (`[r9-4]` DAL, `[r9-8]` Boot, `[r9-12]` UI). **Every** call into Boot from another module goes through that table – 68k applications via their shims, and native modules such as the status bar. The tables live in RAM (`0x1FF0xxxx` on the E3) and are writable; this is how Palm OS 5 system hacks work.
+This is the Palm OS 5 cross-module call convention: `r9` points below a list of export tables (`[r9-4]` DAL, `[r9-8]` Boot, `[r9-12]` UI). **Every** call into Boot from another module goes through that table – 68k applications via their shims, and native modules such as the status bar. The tables live in RAM (`0x1FF0xxxx` on the E2) and are writable; this is how Palm OS 5 system hacks work.
 
-The date functions found this way (identical on the E3 5.4 and the T3 5.2.1 ROM):
+The date functions found this way (identical on the E2 5.4 and the T3 5.2.1 ROM):
 
 | Trap | Function | Boot export | Replacement |
 |---|---|---|---|
@@ -119,7 +119,7 @@ The first self test failed only here. Not a DateFix error: `dfYMDWithDashes` pri
 
 ## 6. Verification on the Tungsten T3 (Palm OS 5.2.1)
 
-- *Patch table*: all 12 functions found, same export numbers as on the E3 (Boot code at `0x2008xxxx`/`0x2009xxxx`).
+- *Patch table*: all 12 functions found, same export numbers as on the E2 (Boot code at `0x2008xxxx`/`0x2009xxxx`).
 - Self test passed.
 - "New Year" (clock set to 2031-12-31 23:59:29): the status bar went from 23:59 to **0:00** and kept running; the status popup (native) showed **"1. Jan 2032"**; ClockProbe read `F0C3F000` = 2032-1-1 0:00:00, then 0:00:06.
 - In the Calendar (emulator), the week arrow moves from 2031-12-31 to **Wed 7 Jan 2032** with the correct weekday.
@@ -138,7 +138,7 @@ Verified in the emulator: enable, normal reset, boots cleanly, DateFix active ag
 
 ## 8. A test emulator with a real clock
 
-CloudpilotEmu (Tungsten E3 ROM) cannot test anything that sets the clock: its PXA real-time clock returns the host time and ignores writes to the counter register (`RCNR`). `TimSetSeconds` therefore had no lasting effect, and a DateFix with a moved epoch saw the host date as its internal date.
+CloudpilotEmu (Tungsten E2 ROM) cannot test anything that sets the clock: its PXA real-time clock returns the host time and ignores writes to the counter register (`RCNR`). `TimSetSeconds` therefore had no lasting effect, and a DateFix with a moved epoch saw the host date as its internal date.
 
 `tools/emulator/` patches the emulator: the counter keeps an offset to the host time, set when the OS writes it, used for reads and for the alarm, and stored in the session (savestate chunk version 2). `build.sh` builds the web app with the same Emscripten version as CloudpilotEmu's CI (6.0.0) and serves it locally.
 
@@ -163,7 +163,7 @@ Flow on Enable/Disable: count (dry run) → ask → copy the affected databases 
 
 Host test (`make test`, `tests/convert_test.c`): records built byte by byte as the applications store them, every field checked, round trip, malformed/clamped/overflow counters.
 
-Emulator (Tungsten E3, 1904 epoch): weekly Calendar event on Wed 2026-09-30 10:00 with a 5-minute alarm, ending Wed 2026-12-16, and an Expense entry of the same day. After Enable (1940): agenda, day view, event details and repeat end show the same real dates and weekdays; Disable restores the original values; Enable again – same result.
+Emulator (Tungsten E2, 1904 epoch): weekly Calendar event on Wed 2026-09-30 10:00 with a 5-minute alarm, ending Wed 2026-12-16, and an Expense entry of the same day. After Enable (1940): agenda, day view, event details and repeat end show the same real dates and weekdays; Disable restores the original values; Enable again – same result.
 
 ## 10. The year shifted twice in the event details
 
@@ -179,7 +179,7 @@ With DateFix active the system's `SelectDay` shows the internal year (1990 for 2
 
 ### 11.1 Attempt: overwrite the PACE stub (not shipped)
 
-`SysGetTrapAddress(sysTrapSelectDay)` returns the PACE stub (`4E4F 07FE` + native address, 8 bytes in RAM at `0x006F20FC` on the E3). Idea: overwrite those 8 bytes with `JMP DfSelectDay` (`4EF9` + address) and a `NOP`, framed by `MemSemaphoreReserve(true)` / `MemSemaphoreRelease(true)`, original bytes kept in features – PACE would run the stub as 68k code and every 68k caller would land in the picker with a normal trap stack.
+`SysGetTrapAddress(sysTrapSelectDay)` returns the PACE stub (`4E4F 07FE` + native address, 8 bytes in RAM at `0x006F20FC` on the E2). Idea: overwrite those 8 bytes with `JMP DfSelectDay` (`4EF9` + address) and a `NOP`, framed by `MemSemaphoreReserve(true)` / `MemSemaphoreRelease(true)`, original bytes kept in features – PACE would run the stub as 68k code and every 68k caller would land in the picker with a normal trap stack.
 
 Result in the emulator: after Enable the Calendar still opened the system picker, and shortly afterwards CloudpilotEmu reported *Timeout while saving state* repeatedly – the emulated device stopped responding (it did not happen with any other build). The cause is not known yet (candidates: `MemSemaphoreReserve` under PACE, the stub region not being plain RAM, PACE caching decoded stubs). A change that can freeze a device is not shipped: the code was reverted, the attempt is kept as `docs/attempts/selectday-pace-stub.diff`. Next step: a probe that only reads the stub region's heap/flags and writes one byte to a copy, to find out what PACE does with it, before touching the live stub again.
 
@@ -187,7 +187,7 @@ Result in the emulator: after Enable the Calendar still opened the system picker
 
 The separate ClockProbe showed the raw clock and the *internal* date – after New Year's Eve 2031 "1996-1-1", correct for the epoch 1940 but confusing. DateFix's main form now shows a live clock check (every half second): what Palm OS shows through the (patched) system functions, what DateFix computes on its own from the raw clock value with the calendar arithmetic of `calendar.c` (compiled for 68k as well, `src/clockcheck.c`), `OK`/`MISMATCH`, and the raw clock with the internal date. "New Year" now sets 23:59:50.
 
-Emulator (E3, start year 1940): 2031-12-31 23:59:51 → "Wed 31 Dec 2031 / Wed 2031-12-31 OK / 1995-12-31 internal", 00:00:02 → "Thu 1 Jan 2032 / Thu 2032-01-01 OK / 1996-1-1 internal". The 5-minute alarm of the weekly Calendar event (converted there and back several times) fired on time at 9:55 with "Wednesday, 9/30/26".
+Emulator (E2, start year 1940): 2031-12-31 23:59:51 → "Wed 31 Dec 2031 / Wed 2031-12-31 OK / 1995-12-31 internal", 00:00:02 → "Thu 1 Jan 2032 / Thu 2032-01-01 OK / 1996-1-1 internal". The 5-minute alarm of the weekly Calendar event (converted there and back several times) fired on time at 9:55 with "Wednesday, 9/30/26".
 
 ## 13. Updating DateFix while it is active (2.0d5)
 
@@ -209,7 +209,7 @@ Seen on the T3 (2.0d5): with the clock on 2032-01-01, Calendar → *Go To* opene
 - `SelectDay`'s shim reaches its veneer through a shared Thumb core (one `bl` deeper), so `FindExport` now follows one `bl` when the shim itself calls no veneer. The six original functions are still found the way they were (depth 0 first). The two picker entries are optional: if either cannot be found, only the six are patched and the *Test* line says which trap was missing.
 - `ftrTargetCount` records how many entries were patched, so Uninstall restores exactly those.
 
-Emulator (E3, epoch 1940; its clock stands in 2062 after the conversion): *Go To* shows "2062" instead of 2026 and the header reads S M T W T F S with the 30th under S and the 1st under F; the year arrow, the month buttons and a tap on a day return the right date to the Calendar (Sep 9, 2063 with Sunday highlighted). Test line: "Self test passed, date picker fixed". The T3 must confirm (same export layout expected).
+Emulator (E2, epoch 1940; its clock stands in 2062 after the conversion): *Go To* shows "2062" instead of 2026 and the header reads S M T W T F S with the 30th under S and the 1st under F; the year arrow, the month buttons and a tap on a day return the right date to the Calendar (Sep 9, 2063 with Sunday highlighted). Test line: "Self test passed, date picker fixed". The T3 must confirm (same export layout expected).
 
 The 68k picker of §11 (`selectday.c`) stays for Palm OS 3.x/4.x, where the trap route works.
 
@@ -239,11 +239,11 @@ Emulator: Disable → Enable cycle with converted data works as before.
 
 Below Palm OS 5 the date functions are 68k code and their traps are replaced directly (`SysSetTrapAddress`): `src/m68k.c` holds the six wrappers (seconds→date with the real weekday, `DayOfWeek`, `DayOfMonth`, and the three formatting functions with the same depth guard as the native code), `Install68k()` the installation. The configuration (offsets, guard, the original entry points) lives in a dynamic-heap chunk owned by the system and referenced by a feature, because these functions run in other applications (no globals, no literals: `tools/check_reset_path.py` follows them). `Uninstall68k()` puts the traps back, frees the chunk and unlocks the code. The database is protected while active, like on Palm OS 5. The SD backup needs VFS Manager 2 (`vfsMgrVersionNum`); on older expansion support the dialog says to HotSync first. CanInstall() accepts 3.5 … 4.x without a scan; below 3.5 (no `DateTemplateToAscii`) it still refuses.
 
-Emulator: CloudpilotEmu with the **Palm m515** ROM (`Palm-m515-4.1-en.rom`, from PalmDB – a device the author owns; 4.1, Dragonball VZ). A weekly Datebook event with an alarm and an end date, created in the 1904 epoch, was converted (2 dates, no card = no backup), DateFix enabled: Self test passed, clock check "Wed 30 Sep 2026 … OK" with the internal date 1990-9-30, Datebook shows the event on the same day with the alarm and repeat symbols. The emulator's Dragonball RTC is not patched like the PXA RTC of the E3, so the New Year rollover itself is a device test.
+Emulator: CloudpilotEmu with the **Palm m515** ROM (`Palm-m515-4.1-en.rom`, from PalmDB – a device the author owns; 4.1, Dragonball VZ). A weekly Datebook event with an alarm and an end date, created in the 1904 epoch, was converted (2 dates, no card = no backup), DateFix enabled: Self test passed, clock check "Wed 30 Sep 2026 … OK" with the internal date 1990-9-30, Datebook shows the event on the same day with the alarm and repeat symbols. The emulator's Dragonball RTC is not patched like the PXA RTC of the E2, so the New Year rollover itself is a device test.
 
 The date picker is the 68k `selectday.c`: `Install68k()` calls `InstallPicker()`, and on Palm OS 4 the trap route works (unlike on Palm OS 5). Go To shows the real year (2026 for the internal 1990), the year arrow goes on to 2032, and September 2032 has the right weekdays (30 Sep 2032 = Thursday); a tap on the day returns it to the Datebook ("Sep 30, 32", Thursday highlighted). The weekly event (Wed 30 Sep 2026 10:00, ending 16 Dec 2026) is on Dec 16 and gone on Dec 23: the converted repeat end is right.
 
-Still open on Palm OS 4: Tasks/To Do and Contacts on the device, the clock rollover on the m515 (the Dragonball RTC of the emulator cannot be set like the E3's), the alarm, the SD backup path on a real card.
+Still open on Palm OS 4: Tasks/To Do and Contacts on the device, the clock rollover on the m515 (the Dragonball RTC of the emulator cannot be set like the E2's), the alarm, the SD backup path on a real card.
 
 ## 16. Launcher icon family (2.0d13)
 
@@ -256,7 +256,7 @@ A calendar page with the year 2032 (blue header, silver binder rings), in every 
 
 `tools/icon/render.swift` draws the vector version with CoreGraphics (shadow, gradients, a real typeface at double density, pixel digits at low density); `tools/icon/convert.py` writes the BMPs (`src/icon/`, committed, so building needs no Swift). `ICONFAMILYEX` / `SMALLICONFAMILYEX` in `datefix.rcp`; pilrc 3.2 accepts 1/4/8/16 bpp and densities, not 2 bpp (Palm OS falls back to the 1 bpp icon on 2-bit grey screens).
 
-Emulator: m515 (OS 4.1): colour icon in the launcher after switching the category; E3 (OS 5.4, double density): the 64x44 colour icon with the badge after a soft reset - the Palm OS 5 launcher caches the icon of an installed application until the next reset.
+Emulator: m515 (OS 4.1): colour icon in the launcher after switching the category; E2 (OS 5.4, double density): the 64x44 colour icon with the badge after a soft reset - the Palm OS 5 launcher caches the icon of an installed application until the next reset.
 
 Update 2.0d14 (after the T3 and m515 photos): at double density the year moved right (x 12.5 instead of 7 in the 64x44 grid) so the "2" no longer touches the page border; the badge covers the last "2" by a few pixels. The low-density sizes got the badge as hand-placed pixel art (7x7 disc, white check, white halo clearing the page lines; `pixelBadge` in render.swift, `badge()` in make_icon.py) - green in colour, black with a white check in 1 bpp.
 
@@ -270,7 +270,7 @@ Seen on the T3 (2.0d16): *Disable* showed "2 dates are after 2031 and cannot be 
 
 2.0d17 asks instead of refusing: *"N dates in <database> are after 31 Dec 2031 and cannot be kept with the start year 1904. Set them to 31 Dec 2031 and go on?"* with "Set & go on" / "Cancel"; on OK those dates become 31 December of the last year (`ConvStats.limitOverflow`, host-tested: `make test`), the result message says how many. Cancel leaves everything as it was (no error alert). The two limits are different things: the **clock** must lie in the old window (else "The date is after 2031. Use Prepare Update for a new version."), entries beyond it may be sacrificed after asking. Prepare Update stays the way to replace DateFix without converting anything back.
 
-Emulator note: the m515/E3 sessions share neither the clock nor a writable RTC like the E3's patched one, so the test state (clock in the 1940 window, an entry in 2032) could not be rebuilt reliably there; the dialog itself is exercised by the host test only. The T3 must confirm.
+Emulator note: the m515/E2 sessions share neither the clock nor a writable RTC like the E2's patched one, so the test state (clock in the 1940 window, an entry in 2032) could not be rebuilt reliably there; the dialog itself is exercised by the host test only. The T3 must confirm.
 
 2.0d18: the *Clock check* block moved down one line so the status line ("Self test passed, picker ok") has its own row.
 
