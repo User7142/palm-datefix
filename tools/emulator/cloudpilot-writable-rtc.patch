@@ -1,0 +1,83 @@
+diff --git a/src/uarm/uarm/pxa_RTC.cpp b/src/uarm/uarm/pxa_RTC.cpp
+index e0ab7d7..1b9a642 100644
+--- a/src/uarm/uarm/pxa_RTC.cpp
++++ b/src/uarm/uarm/pxa_RTC.cpp
+@@ -15,12 +15,13 @@
+ #define PXA_RTC_BASE 0x40900000UL
+ #define PXA_RTC_SIZE 0x00001000UL
+ 
+-#define SAVESTATE_VERSION 1
++#define SAVESTATE_VERSION 2
+ 
+ struct PxaRtc {
+     struct PxaIc *ic;
+ 
+     uint64_t lastAlarmCheck;
++    int64_t offset;  // RCNR - host time: the counter is writable like on the real PXA
+ 
+     uint32_t RTAR;  // RTC alarm
+     uint32_t RTTR;  // RTC trim - we ignore this alltogether
+@@ -34,6 +35,12 @@ struct PxaRtc {
+         } else {
+             chunkHelper.Do32(RTAR).Do32(RTTR).Do8(RTSR).Do64(lastAlarmCheck);
+         }
++
++        if (version >= 2) {
++            uint64_t offsetBits = static_cast<uint64_t>(offset);
++            chunkHelper.Do64(offsetBits);
++            offset = static_cast<int64_t>(offsetBits);
++        }
+     }
+ };
+ 
+@@ -42,9 +49,13 @@ static void pxaRtcPrvUpdateInterrupts(struct PxaRtc *rtc) {
+     pxaIcInt(rtc->ic, PXA_I_RTC_HZ, !!(rtc->RTSR & 2));
+ }
+ 
++static uint32_t pxaRtcPrvCounter(struct PxaRtc *rtc) {
++    return static_cast<uint32_t>(palmEpochSeconds() + rtc->offset);
++}
++
+ static void pxaRtcPrvUpdateAlarm(struct PxaRtc *rtc) {
+     if (rtc->lastAlarmCheck < rtc->RTAR) {
+-        const uint64_t now = palmEpochSeconds();
++        const uint64_t now = pxaRtcPrvCounter(rtc);
+ 
+         if ((rtc->RTSR & 0x04) && now >= rtc->RTAR) rtc->RTSR |= 1;
+ 
+@@ -79,11 +90,15 @@ static bool pxaRtcPrvMemAccessF(void *userData, uint32_t pa, uint_fast8_t size,
+ 
+         switch (pa) {
+             case 0:
++                // RCNR: the OS sets the time by writing the counter
++                rtc->offset = static_cast<int64_t>(val) - static_cast<int64_t>(palmEpochSeconds());
++                rtc->lastAlarmCheck = static_cast<uint64_t>(val) - 1;
++                pxaRtcPrvUpdateAlarm(rtc);
+                 break;
+ 
+             case 1:
+                 rtc->RTAR = val;
+-                rtc->lastAlarmCheck = palmEpochSeconds() - 1;
++                rtc->lastAlarmCheck = pxaRtcPrvCounter(rtc) - 1;
+                 pxaRtcPrvUpdateAlarm(rtc);
+ 
+                 break;
+@@ -101,7 +116,7 @@ static bool pxaRtcPrvMemAccessF(void *userData, uint32_t pa, uint_fast8_t size,
+     } else {
+         switch (pa) {
+             case 0:
+-                val = palmEpochSeconds();
++                val = pxaRtcPrvCounter(rtc);
+                 break;
+ 
+             case 1:
+@@ -160,7 +175,8 @@ void pxaRtcLoad(struct PxaRtc *rtc, T &loader) {
+     LoadChunkHelper helper(*chunk);
+     rtc->DoSaveLoad(helper, gotVersion);
+ 
+-    if (gotVersion == 0) rtc->lastAlarmCheck = palmEpochSeconds();
++    if (gotVersion < 2) rtc->offset = 0;
++    if (gotVersion == 0) rtc->lastAlarmCheck = pxaRtcPrvCounter(rtc);
+ }
+ 
+ template void pxaRtcSave<Savestate<ChunkType>>(PxaRtc *rtc, Savestate<ChunkType> &savestate);

@@ -1,0 +1,144 @@
+#include "datefix.h"
+
+// version resource and About box: generated from VERSION and git (Makefile)
+#include "version.rcp"
+
+APPLICATIONICONNAME ID 1000 "DateFix"
+
+// launcher icons: a calendar page with 2032 (tools/make_icon.py draws the
+// black-and-white ones, tools/icon the grey and colour ones). Depths below
+// 16 colours for Palm OS 3.5 .. 4, double density for Palm OS 5.
+ICONFAMILYEX
+BEGIN
+  BITMAP "icon/icon-large-72-1.bmp" BPP 1 DENSITY 1
+  BITMAP "icon/icon-large-72-4.bmp" BPP 4 DENSITY 1
+  BITMAP "icon/icon-large-72-8.bmp" BPP 8 DENSITY 1
+  BITMAP "icon/icon-large-144-8.bmp" BPP 8 DENSITY 2
+  BITMAP "icon/icon-large-144-16.bmp" BPP 16 DENSITY 2
+END
+
+SMALLICONFAMILYEX
+BEGIN
+  BITMAP "icon/icon-small-72-1.bmp" BPP 1 DENSITY 1
+  BITMAP "icon/icon-small-72-4.bmp" BPP 4 DENSITY 1
+  BITMAP "icon/icon-small-72-8.bmp" BPP 8 DENSITY 1
+  BITMAP "icon/icon-small-144-8.bmp" BPP 8 DENSITY 2
+  BITMAP "icon/icon-small-144-16.bmp" BPP 16 DENSITY 2
+END
+
+// native ARM code (datefix_arm.c)
+DATA "armc" ID armcResID "datefix.armc"
+
+FORM ID mainForm AT (0 0 160 160)
+MENUID mainMenu
+BEGIN
+  TITLE "DateFix"
+
+  LABEL "Palm OS counts dates from 1904 and" AUTOID AT (4 18)
+  LABEL "stops on 31.12.2031. DateFix moves" AUTOID AT (4 PrevBottom)
+  LABEL "the start to a year of your choice." AUTOID AT (4 PrevBottom)
+
+  LABEL "Start year:" AUTOID AT (4 56) FONT 1
+  POPUPTRIGGER "1940" ID mainFormYearTrigger AT (62 56 AUTO AUTO) LEFTANCHOR
+  LIST "1904" "1908" "1912" "1916" "1920" "1924" "1928" "1932" "1936" "1940" "1944" "1948" "1952" "1956" "1960" "1964" "1968" "1972" ID mainFormYearList AT (62 56 36 110) VISIBLEITEMS 10 NONUSABLE
+  POPUPLIST ID mainFormYearTrigger mainFormYearList
+
+  LABEL "Not active (1904 - 2031)          " ID mainFormStatus AT (4 72) FONT 1
+
+  BUTTON "Disable" ID mainFormToggle AT (4 88 48 12)
+  BUTTON "Test" ID mainFormTest AT (PrevRight+6 PrevTop 40 12)
+  BUTTON "New Year" ID mainFormRollover AT (PrevRight+6 PrevTop 50 12)
+
+  LABEL "Clock check" AUTOID AT (4 117) FONT 1
+END
+
+// date picker with real years (selectday.c); month labels set at run time
+FORM ID sdForm AT (2 2 156 156)
+MODAL
+BEGIN
+  TITLE "Select Date"
+  REPEATBUTTON "\003" ID sdPrevYear AT (46 16 12 12) NOFRAME FONT 3
+  GADGET ID sdYearGadget AT (58 16 40 12)
+  REPEATBUTTON "\004" ID sdNextYear AT (98 16 12 12) NOFRAME FONT 3
+  PUSHBUTTON "" ID 1310 AT (6 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1311 AT (30 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1312 AT (54 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1313 AT (78 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1314 AT (102 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1315 AT (126 30 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1316 AT (6 43 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1317 AT (30 43 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1318 AT (54 43 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1319 AT (78 43 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1320 AT (102 43 24 12) GROUP sdMonthGroup
+  PUSHBUTTON "" ID 1321 AT (126 43 24 12) GROUP sdMonthGroup
+  GADGET ID sdGridGadget AT (6 58 144 77)
+  BUTTON "Cancel" ID sdCancel AT (6 139 40 12)
+  BUTTON "Today" ID sdToday AT (52 139 40 12)
+END
+
+MENU ID mainMenu
+BEGIN
+  PULLDOWN "Options"
+  BEGIN
+    MENUITEM "Show Trace" ID mainMenuTrace
+    MENUITEM "Prepare Update" ID mainMenuUpdate
+    MENUITEM "About DateFix" ID mainMenuAbout
+  END
+END
+
+ALERT ID errorAlert
+ERROR
+BEGIN
+  TITLE "DateFix"
+  MESSAGE "^1\n^2"
+  BUTTONS "OK"
+END
+
+ALERT ID convertAlert
+CONFIRMATION
+BEGIN
+  TITLE "Convert Dates"
+  MESSAGE "^1\n\nBackup: /PALM/DateFix on the card; without a card, HotSync first."
+  BUTTONS "Convert" "Cancel"
+END
+
+ALERT ID resultAlert
+INFORMATION
+BEGIN
+  TITLE "Dates Converted"
+  MESSAGE "^1"
+  BUTTONS "OK"
+END
+
+ALERT ID interruptedAlert
+WARNING
+BEGIN
+  TITLE "DateFix"
+  MESSAGE "The last date conversion was interrupted (reset or crash): some entries may show dates that are 36 years off. Restore the databases from /PALM/DateFix on the card or from your last HotSync."
+  BUTTONS "OK"
+END
+
+ALERT ID updateAlert
+INFORMATION
+BEGIN
+  TITLE "Prepare Update"
+  MESSAGE "DateFix is paused and can be replaced: HotSync the new version now. It switches itself on again right after the HotSync.\n\nUntil then applications show years 36 years early."
+  BUTTONS "OK"
+END
+
+ALERT ID traceAlert
+INFORMATION
+BEGIN
+  TITLE "Trace"
+  MESSAGE "^1"
+  BUTTONS "OK"
+END
+
+ALERT ID limitAlert
+CONFIRMATION
+BEGIN
+  TITLE "Dates Beyond The Limit"
+  MESSAGE "^1"
+  BUTTONS "Set & go on" "Cancel"
+END

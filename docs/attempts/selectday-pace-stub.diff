@@ -1,0 +1,167 @@
+diff --git a/src/datefix.c b/src/datefix.c
+index 630a384..544b09e 100644
+--- a/src/datefix.c
++++ b/src/datefix.c
+@@ -317,16 +317,35 @@ ReadConfig(const UInt8 *code, UInt16 index)
+  * stays locked until Uninstall (or the next reset) - the picker runs in
+  * other applications long after DateFix itself has quit.
+  *
+- * Palm OS 5 refuses this trap (sysErrNotAllowed: PACE only lets a few
+- * traps be replaced), so there the system picker stays - see
+- * docs/fix-log.md. Palm OS 3.x/4.x take it.
++ * Palm OS 5 refuses SysSetTrapAddress for this trap (sysErrNotAllowed).
++ * There the trap entry points to a PACE stub in RAM, "TRAP #15, 07FE,
++ * native address" (8 bytes, see FindExport); DateFix overwrites exactly
++ * those 8 bytes with "JMP DfSelectDay; NOP". PACE runs the stub as 68k
++ * code, so every 68k caller arrives in DfSelectDay with the stack of a
++ * trap call. The original bytes are kept in features and put back by
++ * UninstallPicker. Palm OS 3.x/4.x take SysSetTrapAddress.
+  */
++static Boolean
++PatchStub(UInt8 *stub, const UInt8 *bytes)
++{
++  UInt16 i;
++
++  MemSemaphoreReserve(true);                    // the stub may be protected
++  for (i = 0; i < 8; i++) stub[i] = bytes[i];
++  MemSemaphoreRelease(true);
++  for (i = 0; i < 8; i++)
++    if (((volatile UInt8 *)stub)[i] != bytes[i]) return false;
++  return true;
++}
++
+ static void
+ InstallPicker(void)
+ {
+   MemHandle codeH;
+   DmOpenRef db;
+-  UInt32    orig;
++  UInt8    *stub, jump[8];
++  UInt32    orig, target, saved[2];
++  Boolean   done = false;
+ 
+   if (FtrGet(appCreator, ftrPickerCode, &orig) == errNone) return;
+ 
+@@ -337,12 +356,35 @@ InstallPicker(void)
+   if (codeH != NULL)
+   {
+     MemHandleLock(codeH);
+-    orig = (UInt32)SysGetTrapAddress(sysTrapSelectDay);
+-    if (SysSetTrapAddress(sysTrapSelectDay, (void *)DfSelectDay) == errNone)
++    stub = (UInt8 *)SysGetTrapAddress(sysTrapSelectDay);
++    if ((stub[0] == 0x4E) && (stub[1] == 0x4F) &&
++        (stub[2] == 0x07) && (stub[3] == 0xFE))
+     {
+-      FtrSet(appCreator, ftrOrigSelectDay, orig);
+-      FtrSet(appCreator, ftrPickerCode, (UInt32)codeH);
++      // Palm OS 5: replace the PACE stub
++      MemMove(saved, stub, 8);
++      target = (UInt32)DfSelectDay;
++      jump[0] = 0x4E; jump[1] = 0xF9;           // JMP (xxx).L
++      jump[2] = (UInt8)(target >> 24); jump[3] = (UInt8)(target >> 16);
++      jump[4] = (UInt8)(target >> 8);  jump[5] = (UInt8)target;
++      jump[6] = 0x4E; jump[7] = 0x71;           // NOP
++      if (PatchStub(stub, jump))
++      {
++        FtrSet(appCreator, ftrStubAddress, (UInt32)stub);
++        FtrSet(appCreator, ftrStubBytes, saved[0]);
++        FtrSet(appCreator, ftrStubBytes + 1, saved[1]);
++        done = true;
++      }
++      else
++        PatchStub(stub, (UInt8 *)saved);
++    }
++    else if (SysSetTrapAddress(sysTrapSelectDay, (void *)DfSelectDay) == errNone)
++    {
++      FtrSet(appCreator, ftrOrigSelectDay, (UInt32)stub);
++      done = true;
+     }
++
++    if (done)
++      FtrSet(appCreator, ftrPickerCode, (UInt32)codeH);
+     else
+       MemHandleUnlock(codeH);
+   }
+@@ -352,14 +394,25 @@ InstallPicker(void)
+ static void
+ UninstallPicker(void)
+ {
+-  UInt32 codeH, orig;
++  UInt32 codeH, orig, stub, saved[2];
+ 
+   if (FtrGet(appCreator, ftrPickerCode, &codeH) != errNone) return;
+-  FtrGet(appCreator, ftrOrigSelectDay, &orig);
+-  SysSetTrapAddress(sysTrapSelectDay, (void *)orig);
++  if (FtrGet(appCreator, ftrStubAddress, &stub) == errNone)
++  {
++    FtrGet(appCreator, ftrStubBytes, &saved[0]);
++    FtrGet(appCreator, ftrStubBytes + 1, &saved[1]);
++    PatchStub((UInt8 *)stub, (UInt8 *)saved);
++    FtrUnregister(appCreator, ftrStubAddress);
++    FtrUnregister(appCreator, ftrStubBytes);
++    FtrUnregister(appCreator, ftrStubBytes + 1);
++  }
++  else if (FtrGet(appCreator, ftrOrigSelectDay, &orig) == errNone)
++  {
++    SysSetTrapAddress(sysTrapSelectDay, (void *)orig);
++    FtrUnregister(appCreator, ftrOrigSelectDay);
++  }
+   MemHandleUnlock((MemHandle)codeH);
+   FtrUnregister(appCreator, ftrPickerCode);
+-  FtrUnregister(appCreator, ftrOrigSelectDay);
+ }
+ 
+ /**
+@@ -901,11 +954,20 @@ SelfTest(UInt16 startYear, Char *report)
+   DateToDOWDMFormat(1, 1, 1996, dfYMDLongWithDot, str);
+   CHECK(StrStr(str, year) != NULL, str);
+ 
+-  // the date picker is DateFix's where the system lets it be replaced
++  // the date picker is DateFix's
+   {
+     UInt32 codeH;
+ 
+-    if (FtrGet(appCreator, ftrPickerCode, &codeH) == errNone)
++    UInt32 stub;
++    UInt8 *p;
++
++    if (FtrGet(appCreator, ftrStubAddress, &stub) == errNone)
++    {
++      p = (UInt8 *)stub;
++      CHECK((p[0] == 0x4E) && (p[1] == 0xF9) &&
++            (*(UInt32 *)(p + 2) == (UInt32)DfSelectDay), "SelectDay stub");
++    }
++    else if (FtrGet(appCreator, ftrPickerCode, &codeH) == errNone)
+       CHECK(SysGetTrapAddress(sysTrapSelectDay) == (void *)DfSelectDay,
+             "SelectDay trap");
+   }
+@@ -1001,7 +1063,16 @@ MainFormHandleEvent(EventType *event)
+                 {
+                   failed = SelfTest(prefs.startYear, message);
+                   if (failed == 0)
++                  {
++                    UInt32 unused;
+                     StrCopy(gStatus, "Self test passed");
++                    if (FtrGet(appCreator, ftrStubAddress, &unused) == errNone)
++                      StrCat(gStatus, ", picker: stub");
++                    else if (FtrGet(appCreator, ftrPickerCode, &unused) == errNone)
++                      StrCat(gStatus, ", picker: trap");
++                    else
++                      StrCat(gStatus, ", picker: system");
++                  }
+                   else
+                     StrPrintF(gStatus, "%d failed: %s", failed, message);
+                 }
+diff --git a/src/datefix.h b/src/datefix.h
+index 78fbfc4..7af1302 100644
+--- a/src/datefix.h
++++ b/src/datefix.h
+@@ -18,6 +18,8 @@
+ #define ftrOffsetYears        1         // S - 1904, read by the date picker
+ #define ftrOrigSelectDay      2         // the SelectDay trap before DateFix
+ #define ftrPickerCode         3         // locked code resource of the picker
++#define ftrStubAddress        4         // Palm OS 5: the patched PACE stub
++#define ftrStubBytes          5         // .. 6: its original 8 bytes
+ 
+ #define mainForm              1000
+ #define mainFormStatus        1001
