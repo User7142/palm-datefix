@@ -4,3 +4,5 @@ tools/probes/out/
 tools/probes/*.prc
 tests/convert_test
 .DS_Store
+tests/apppatch_test
+__pycache__/

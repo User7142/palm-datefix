@@ -67,6 +67,9 @@ build/datefix.o: src/datefix.c src/datefix.h src/convert.h build/armc_offsets.h
 build/convert.o: src/convert.c src/convert.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
 
+build/apppatch.o: src/apppatch.c src/apppatch.h
+	$(CC68K) $(CFLAGS68K) -c $< -o $@
+
 build/selectday.o: src/selectday.c src/selectday.h src/datefix.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
 
@@ -80,7 +83,7 @@ build/m68k.o: src/m68k.c src/m68k.h src/calendar.h src/types.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
 
 OBJS68K = build/datefix.o build/convert.o build/selectday.o build/clockcheck.o \
-	  build/calendar_68k.o build/m68k.o
+	  build/calendar_68k.o build/m68k.o build/apppatch.o
 
 build/datefix: $(OBJS68K) tools/check_reset_path.py
 	$(CC68K) $(CFLAGS68K) $(OBJS68K) -o $@
@@ -106,9 +109,13 @@ build/.resources: src/datefix.rcp src/datefix.h build/datefix.armc build/version
 build/DateFix.prc: build/datefix build/.resources
 	$(BUILDPRC) -o $@ -t appl -c DtFx -n DateFix build/datefix build/*.bin
 
-test: test-calendar test-convert
+test: test-calendar test-convert test-apppatch
 
-.PHONY: test-calendar test-convert
+.PHONY: test-calendar test-convert test-apppatch
+test-apppatch:
+	/usr/bin/clang -O2 -Wall -DHOST_TEST -Isrc src/apppatch.c tests/apppatch_test.c -o tests/apppatch_test
+	./tests/apppatch_test
+
 test-convert:
 	/usr/bin/clang -O2 -Wall -DHOST_TEST -Isrc src/convert.c tests/convert_test.c -o tests/convert_test
 	./tests/convert_test
@@ -118,4 +125,4 @@ test-calendar:
 	./tests/dump | python3 tests/check.py
 
 clean:
-	rm -rf build tests/dump tests/convert_test
+	rm -rf build tests/dump tests/convert_test tests/apppatch_test

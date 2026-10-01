@@ -11,7 +11,7 @@ CC68K    = $(TOOLS)/bin/m68k-palmos-gcc -O2 -Wall -nostdinc \
 CCARM    = $(TOOLS)/bin/arm-palmos-gcc -O2 -marm -mno-apcs-frame -fomit-frame-pointer \
 	   -ffixed-r9 -nostdlib -nostartfiles -B$(TOOLS)/lib/gcc-lib/arm-palmos/3.3.1/ \
 	   -B$(TOOLS)/arm-palmos/bin/
-all: ExportProbe.prc FormProbe.prc
+all: ExportProbe.prc FormProbe.prc YearProbe.prc
 ExportProbe.prc: exportprobe.c exportprobe_arm.c
 	mkdir -p out
 	$(CCARM) -Wl,-e,Read -Wl,-Ttext,0 exportprobe_arm.c -o out/arm.elf
@@ -21,7 +21,7 @@ ExportProbe.prc: exportprobe.c exportprobe_arm.c
 	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/probe.rcp out
 	$(TOOLS)/bin/build-prc -o $@ -t appl -c ExPb -n ExportProbe out/exportprobe out/*.bin
 clean:
-	rm -rf out ExportProbe.prc
+	rm -rf out ExportProbe.prc FormProbe.prc YearProbe.prc
 
 FormProbe.prc: formprobe.c
 	mkdir -p out/form
@@ -29,3 +29,10 @@ FormProbe.prc: formprobe.c
 	printf 'APPLICATIONICONNAME ID 1000 "FormProbe"\n' > out/form/probe.rcp
 	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/form/probe.rcp out/form
 	$(TOOLS)/bin/build-prc -o $@ -t appl -c FmPb -n FormProbe out/form/formprobe out/form/*.bin
+
+YearProbe.prc: yearprobe.c
+	mkdir -p out/year
+	$(CC68K) yearprobe.c -o out/year/yearprobe
+	printf 'APPLICATIONICONNAME ID 1000 "YearProbe"\n' > out/year/probe.rcp
+	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/year/probe.rcp out/year
+	$(TOOLS)/bin/build-prc -o $@ -t appl -c YrPb -n YearProbe out/year/yearprobe out/year/*.bin

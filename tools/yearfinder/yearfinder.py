@@ -103,33 +103,56 @@ def draws_below(ins, index, addr, depth):
 
 
 def analyse(ins, index, i, window):
-    """Classify the 1904 constant at ins[i] by what the next instructions do with the year."""
+    """Classify the 1904 constant at ins[i] by following the value in its register.
+
+    The sum is tracked through register copies until it is pushed as an argument; the first call after that
+    decides: a trap (StrIToA & co. = DRAW, date function = API), a call of the application's own function
+    (CALLDRAW if that function draws a number, else CALL). A store into a structure is STORE, into a local
+    variable LOCAL (shown later by a push of the local, to be followed by hand), a compare only CMP."""
     t = ins[i]["text"]
     if t.startswith("cmp"):
         return "CMP", [], [], []
     m = re.search(r"#1904,%(d\d)", t)
-    reg = m.group(1) if m else None
-    traps, stores, calls, flags = [], [], [], set()
+    if not m:
+        return "?", [], [], []
+    tracked, pushed = {m.group(1)}, False
+    traps, stores, calls, seen = [], [], [], set()
     for j in range(i + 1, min(i + 1 + window, len(ins))):
         x = ins[j]["text"]
         if x.startswith(("unlk", "rte")) or (x == "rts" and not ins[j - 1]["text"].startswith("addil")):
             break
         tr = trap_at(ins, j)
-        if tr:
-            traps.append(tr)
-            flags.add("DRAW" if tr in DRAW else "API" if tr in API else "")
         tgt = call_target(ins, j)
-        if tgt:
+        if pushed and (tr or tgt):
+            if tr:
+                traps.append(tr)
+                return ("DRAW" if tr in DRAW else "API" if tr in API else "OTHER"), stores, traps, calls
             calls.append(tgt)
-            flags.add("CALLDRAW" if draws_below(ins, index, tgt, 2) else "CALL")
-        if reg:
-            if re.match(r"move[wl] %%%s,%%a\d@\((\d+)\)" % reg, x):
-                stores.append(re.search(r"\((\d+)\)", x).group(1))
-                flags.add("STORE")
-            if re.match(r"cmp\w* (?:.*,)?%%%s$|cmp\w* %%%s," % (reg, reg), x):
-                flags.add("CMP")
-    for k in ("DRAW", "CALLDRAW", "API", "CALL", "STORE", "CMP"):
-        if k in flags:
+            return ("CALLDRAW" if draws_below(ins, index, tgt, 2) else "CALL"), stores, traps, calls
+        for r in list(tracked):
+            if re.match(r"move[wl] %%%s,%%sp@-$" % r, x):
+                pushed = True
+            mc = re.match(r"move[wl] %%%s,%%(d\d)$" % r, x)
+            if mc:
+                tracked.add(mc.group(1))
+            ms = re.match(r"move[wl] %%%s,%%a\d@\((-?\d+)\)$" % r, x)
+            if ms:
+                stores.append(ms.group(1))
+                seen.add("STORE")
+            ml = re.match(r"move[wl] %%%s,%%fp@\((-?\d+)\)$" % r, x)
+            if ml:
+                stores.append("fp" + ml.group(1))
+                seen.add("LOCAL")
+            if re.match(r"cmp\w* (?:.*,)?%%%s$|cmp\w* %%%s," % (r, r), x):
+                seen.add("CMP")
+        md = re.match(r"(?:moveq|move[bwl]|clr[bwl]|lea)\b.*,%(d\d)$", x)
+        if md and md.group(1) in tracked and not re.match(r"move[wl] %%d\d,%%%s$" % md.group(1), x):
+            if not re.search(r"%%%s\b" % md.group(1), x.split(",")[0]):
+                tracked.discard(md.group(1))
+                if not tracked and not pushed:
+                    break
+    for k in ("LOCAL", "STORE", "CMP"):
+        if k in seen:
             return k, stores, traps, calls
     return "?", stores, traps, calls
 
@@ -140,7 +163,7 @@ def main():
     ap.add_argument("--window", type=int, default=24, help="instructions to scan after the constant")
     ap.add_argument("--json")
     ap.add_argument("--objdump", default=OBJDUMP)
-    ap.add_argument("--all", action="store_true", help="also list API/STORE/CMP (default: DRAW, CALLDRAW and ? only)")
+    ap.add_argument("--all", action="store_true", help="also list API/STORE/CMP (default: DRAW, CALLDRAW, LOCAL, OTHER and ? only)")
     a = ap.parse_args()
     data = open(a.prc, "rb").read()
     found = []
@@ -156,7 +179,7 @@ def main():
             ctx = "".join(y["hex"] for y in ins[max(0, i - 2):i + 3])
             found.append({"resource": "code %d" % rid, "offset": x["addr"], "insn": x["text"], "kind": kind,
                           "stores_to": stores, "traps_after": traps, "calls": ["0x%x" % c for c in calls], "context_hex": ctx})
-    shown = [f for f in found if a.all or f["kind"] in ("DRAW", "CALLDRAW", "?")]
+    shown = [f for f in found if a.all or f["kind"] in ("DRAW", "CALLDRAW", "LOCAL", "OTHER", "?")]
     counts = {}
     for f in found:
         counts[f["kind"]] = counts.get(f["kind"], 0) + 1

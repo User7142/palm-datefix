@@ -20,7 +20,7 @@ ROOTS = ["PilotMain", "DfSelectDay", "M68kSecondsToDateTime", "M68kDayOfWeek",
          "M68kDateTemplateToAscii"]
 UI_ONLY = {"EventLoop", "MainFormHandleEvent", "MainFormUpdate", "TableFormDraw",
            "TableFormHandleEvent", "SelfTest", "Uninstall", "SetEnabled",
-           "Enable", "Disable"}
+           "Enable", "Disable", "ReapplyAppPatches"}
 
 funcs, current = {}, None
 for line in sys.stdin:

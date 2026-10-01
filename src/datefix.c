@@ -29,6 +29,7 @@
 #include <VFSMgr.h>
 #include "datefix.h"
 #include "convert.h"
+#include "apppatch.h"
 #include "selectday.h"
 #include "clockcheck.h"
 #include "m68k.h"
@@ -1076,6 +1077,7 @@ static Boolean
 Enable(UInt16 startYear, Char *message)
 {
   Prefs prefs;
+  AppPatchStats patches;
 
   LoadPrefs(&prefs);
   if (prefs.enabled) return true;
@@ -1096,6 +1098,7 @@ Enable(UInt16 startYear, Char *message)
     return false;
   }
   MoveClock(EPOCH_YEAR, startYear, message);
+  AppPatchSet(startYear, &patches);              // applications that draw the year themselves
 
   prefs.startYear = startYear;
   prefs.enabled   = true;
@@ -1113,6 +1116,7 @@ Disable(Char *message)
 {
   Prefs  prefs;
   UInt32 delta;
+  AppPatchStats patches;
 
   LoadPrefs(&prefs);
   if (!prefs.enabled) return true;
@@ -1126,6 +1130,7 @@ Disable(Char *message)
   if (!ConvertWithBackup(prefs.startYear, EPOCH_YEAR, message))
     return false;
   Uninstall();
+  AppPatchSet(EPOCH_YEAR, &patches);             // the applications' own year constants back
   MoveClock(prefs.startYear, EPOCH_YEAR, message);
 
   prefs.enabled = false;
@@ -1461,6 +1466,18 @@ MainFormHandleEvent(EventType *event)
                       StrCat(gStatus, ", picker ok");
                     else if (FtrGet(appCreator, ftrPickerMissing, &count) == errNone)
                       StrPrintF(gStatus + StrLen(gStatus), ", picker: no %lx", count);
+                    {
+                      AppPatchStats patches;
+
+                      AppPatchSet(prefs.startYear, &patches);
+                      if (patches.patched + patches.unchanged > 0)
+                        StrPrintF(gStatus + StrLen(gStatus), ", apps: %d",
+                                  patches.patched + patches.unchanged);
+                      if (patches.other > 0)             // other version: sites not recognised
+                        StrPrintF(gStatus + StrLen(gStatus), ", other: %d", patches.other);
+                      if (patches.locked > 0)            // ROM or in use: cannot be written
+                        StrPrintF(gStatus + StrLen(gStatus), ", locked: %d", patches.locked);
+                    }
                   }
                   else
                     StrPrintF(gStatus, "%d failed: %s", failed, message);
@@ -1513,8 +1530,11 @@ MainFormHandleEvent(EventType *event)
              StrCopy(gStatus, "Not active: just HotSync");
            else
            {
+             Char years[8];
+
              Uninstall();
-             FrmAlert(updateAlert);
+             StrIToA(years, prefs.startYear - EPOCH_YEAR);
+             FrmCustomAlert(updateAlert, years, "", "");
              StrCopy(gStatus, "Paused for the update");
            }
            MainFormUpdate(frm);
@@ -1564,6 +1584,19 @@ EventLoop(void)
   while (event.eType != appStopEvent);
 }
 
+/**
+ * Writes the year constants into the applications again: one may have been
+ * installed again since (HotSync) and has its old code. Normal launch only:
+ * the patch table is in the globals, which the reset launch does not have.
+ */
+static void
+ReapplyAppPatches(UInt16 startYear)
+{
+  AppPatchStats patches;
+
+  AppPatchSet(startYear, &patches);
+}
+
 UInt32
 PilotMain(UInt16 cmd, MemPtr cmdPBP, UInt16 launchFlags)
 {
@@ -1588,7 +1621,10 @@ PilotMain(UInt16 cmd, MemPtr cmdPBP, UInt16 launchFlags)
          if (prefs.converting)
            FrmAlert(interruptedAlert);
          if (prefs.enabled)
+         {
            Install(prefs.startYear, NULL);        // paused for an update
+           ReapplyAppPatches(prefs.startYear);
+         }
          FrmGotoForm(mainForm);
          EventLoop();
          FrmCloseAllForms();

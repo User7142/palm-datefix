@@ -6,7 +6,7 @@ Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clo
 
 > **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
-**Download:** [DateFix-2.0.0-beta.2.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
+**Download:** [DateFix-2.0.0-beta.4.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
 
 ## The idea, and credit
 
@@ -59,6 +59,12 @@ Stored dates of the built-in applications are moved with the epoch, one record a
 
 The original databases are **not** touched on the card; `/PALM/DateFix` holds copies made *before* converting. A reset in the middle of a conversion is reported at the next start.
 
+## Applications that draw the year themselves
+
+Some applications do not ask the system to format the year, they compute `year + 1904` and draw the result themselves (Date Book+: week, two-week and year view). They show the internal year. DateFix has a small table of such applications (**so far only Date Book+ 3.0H**): it writes the start year into the year constant of their stored code, so they compute the real year. The sites were found with [`tools/yearfinder`](tools/README.md); *Test* shows `apps: n` (sites patched), `other: n` (another version of a known application, not touched) and `locked: n` (database that cannot be written). *Disable* takes the patch out again.
+
+**An application in ROM cannot be patched**, and a RAM copy of the same name and creator does not take over from it (tried on a Handspring Visor). The way around is a copy under its **own creator**: [`tools/ramcopy/make_ram_copy.py`](tools/ramcopy/make_ram_copy.py) makes it from the application's `.prc` (name `DateBk3x`, creator `HsDR`, launcher name "DB+ (RAM)"; the table already has an entry for it). It shows up as a second icon, runs from RAM, patched, and uses the same appointments. The hardware button and alarms still start the ROM version. **DateFix does not contain Date Book+ and this repository has no copy of it**; you need the `.prc` of version 3.0H yourself. Applications and versions that are not in the table are not changed.
+
 ## Tested devices
 
 | Device | Palm OS | Result |
@@ -67,13 +73,13 @@ The original databases are **not** touched on the card; `/PALM/DateFix` holds co
 | Palm m515 | 4.1 | works: conversion, soft reset keeps the patch |
 | Tungsten E2 (emulator) | 5.4 | works |
 | Palm m515 (emulator) | 4.1 | works |
-| Handspring Visor | 3.5.2H3 | Date Book works; Date Book+ partly (see limitations) |
+| Handspring Visor | 3.5.2H3 | Date Book works; Date Book+ 3.0H: the ROM version shows the internal year in week, two-week and year view; a RAM copy under its own creator (launcher entry "DB+ (RAM)", see `tools/ramcopy`) shows the right year in every view (confirmed by the owner of the device) |
 
 **Help wanted:** T5, TX, LifeDrive, Zire, Clié and everything else is *expected* to work (the export table entries are located by decoding the ROM, nothing is hard-coded; DateFix patches nothing if it cannot find them), but it is not confirmed. If you try it, please report: device, Palm OS version, the self test line, the clock check line and *Show Trace*.
 
 ## Known limitations
 
-- **Applications that draw the year themselves** (not through the system's date functions) show the *internal* year. Date Book+ (Handspring Visor, Pimlico DateBk3): day and month view are right, **week, two-week and year view show the internal year** (e.g. 1996 instead of 2032). The plan is a table of call sites per application version; the standard Date Book is right in every view.
+- **Applications that draw the year themselves** (not through the system's date functions) show the *internal* year, unless DateFix knows them. DateFix has a small table of such applications and versions (so far Date Book+ 3.0H, found with `tools/yearfinder`): it writes the start year into the year constant of their stored code, so the week, two-week and year view show the real year (checked on a Palm m515 in the emulator; `Test` shows `apps: n`). *Disable* takes it out. An application in ROM (the Visor's own Date Book+) cannot be changed and keeps showing the internal year, as does every application and version that is not in the table. A RAM copy of the same name and creator does not take over from the ROM version (Visor, 2026-10-01); a copy under its own creator does (`tools/ramcopy`), but then Date Book+ has to be started from its own launcher icon. Date Book+ 3.0H (Handspring build) does not run on Palm OS 5 at all. The standard Date Book is right in every view.
 - **HotSync with a desktop** transfers the internal dates. Conduits and the desktop software know nothing about the moved epoch.
 - The window is **128 years** (the year field has 7 bits). Dates outside it cannot be stored.
 - Databases of other applications (Date Book+'s own database `Datebk3HDB`, third-party calendars) are not converted; their record formats are not known.

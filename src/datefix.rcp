@@ -115,7 +115,7 @@ ALERT ID interruptedAlert
 WARNING
 BEGIN
   TITLE "DateFix"
-  MESSAGE "The last date conversion was interrupted (reset or crash): some entries may show dates that are 36 years off. Restore the databases from /PALM/DateFix on the card or from your last HotSync."
+  MESSAGE "The last date conversion was interrupted (reset or crash): some entries may show dates that are off by the difference of the start years. Restore the databases from /PALM/DateFix on the card or from your last HotSync."
   BUTTONS "OK"
 END
 
@@ -123,7 +123,7 @@ ALERT ID updateAlert
 INFORMATION
 BEGIN
   TITLE "Prepare Update"
-  MESSAGE "DateFix is paused and can be replaced: HotSync the new version now. It switches itself on again right after the HotSync.\n\nUntil then applications show years 36 years early."
+  MESSAGE "DateFix is paused and can be replaced: HotSync the new version now. It switches itself on again right after the HotSync.\n\nUntil then applications show years ^1 years early."
   BUTTONS "OK"
 END
 

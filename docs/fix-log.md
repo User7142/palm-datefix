@@ -306,8 +306,66 @@ Only fresh *Enable* runs use the new default; a device enabled with 1940 keeps i
 
 ## 20. Search tool for year-drawing code (`tools/yearfinder`)
 
-Applications that draw the year themselves compute `DateType.year + 1904` (the SDK's `firstYear`, immediate `0x0770`). The tool disassembles every `code` resource and looks at each place with that constant: what is done with the sum in the next 24 instructions (a trap to `StrIToA`/`StrPrintF`/`StrVPrintF` = `DRAW`; a date function = `API`, right as it is; the application's own function, followed through `jsr`/`bsr` and the loader's far-call idiom `pea; pea; addil #N,%sp@; rts` for two levels = `CALLDRAW`/`CALL`; a compare, a store into a structure).
+Applications that draw the year themselves compute `DateType.year + 1904` (the SDK's `firstYear`, immediate `0x0770`). The tool disassembles every `code` resource and looks at each place with that constant. It follows the sum in its register through copies until it is pushed as an argument, and the first call after that decides: a trap to `StrIToA`/`StrPrintF`/`StrVPrintF` = `DRAW`; a date function = `API` (right as it is); the application's own function, followed through `jsr`/`bsr` and the loader's far-call idiom `pea; pea; addil #N,%sp@; rts` for two levels = `CALLDRAW` (that function draws a number) or `CALL`; a compare = `CMP`; a store into a structure `STORE`, into a local variable `LOCAL` (to follow by hand).
 
-Date Book+ 3.0H (`DateBk3h` rebuilt from the Visor ROM): **112 sites** with 1904 - 57 API, 19 CALL, 8 CMP, **3 DRAW, 7 CALLDRAW**, 18 not classified. The DRAW/CALLDRAW sites (code 3: 0x1312, 0x23e6, 0x2492, 0x24a6; code 4: 0x4bbe, 0x61da, 0x61f8, 0x6240, 0x627c, 0x63b0) are the candidates for the week, two-week and year view. The 55+ API sites (`DaysInMonth`, `DayOfWeek`, `DayOfMonth`) need nothing, which is why the day and month view are already right.
+The first version only looked at the next 14 instructions for any trap and over-reported: a range check (`cmpiw #2031`) followed by a call counted as drawing. Register tracking removed those (e.g. code 3 0x23e6, 0x2492, 0x24a6 are the year view's "next year" check; code 4 0x4bbe is a compare, 0x63b0 hands the year to a date helper that returns a day number).
 
-Limits: a scan, not a proof. A year kept in a local variable for longer than the window, or shown through a table, is missed or shows as `?`; a `DRAW` can be a false positive (a number that only looks like a year). Each candidate has to be confirmed with *Show Trace* or on the device before it goes into a table. The table itself (resource, offset, expected bytes, what to add) and the code that applies it are not written yet.
+Date Book+ 3.0H (`DateBk3h` rebuilt from the Visor ROM): **112 sites** with 1904 - 51 API, 11 CALL, 11 CMP, 2 STORE, **1 DRAW, 4 CALLDRAW**, 11 LOCAL, 10 OTHER, 11 not classified. The five drawing sites are the year view's title (code 3, 0x1312) and four calls of the function that writes "year" or "two-digit year" for the week and two-week title (code 4, 0x61da, 0x61f8, 0x6240, 0x627c; the function is at 0x60b6, it also pads a two-digit year itself). The 32 unclassified sites were not needed for any view that was checked, see section 21.
+
+Limits: a scan, not a proof. A year kept in a local variable for longer than the window, or shown through a table, is not followed (`LOCAL`, `?`); a `DRAW` can be a false positive. Each candidate has to be confirmed before it goes into the table.
+
+## 21. App patches: the year constant (`src/apppatch.c`)
+
+**Why not a hook.** The obvious idea, a hook on `StrIToA` that adds the offset for the listed call sites, fails on the two-digit title: the application cuts the year to two digits and pads it itself ("if year mod 100 < 10 then prepend 0", from its own copy of the *internal* year). For the internal years 1904-1909 and 2000-2009, i.e. exactly the real years 2032-2037, the padding would mangle what the hook wrote ("32" became "03"). A fix that goes wrong in the first years after 2031 is no fix.
+
+**What it does.** At every drawing site the application adds the constant 1904 (`addi.w #1904,Dn`, bytes `0640+n 0770`). DateFix writes the *start year* into that word, so the application computes the real year and everything after it (two digits, padding, comparisons of this value) stays right. The write goes into the stored code resource through `DmWrite` and runs on Palm OS 3.5 to 5; it needs no hook and no trap. Disable writes 1904 back.
+
+- Table (`kAppPatches`): database name, creator, and per site the resource id, the *exact size* of that resource and the offset. A site is only touched if the size matches and the bytes there are `addi.w #imm,Dn` with imm = 1904 or a possible start year; anything else is another version and is left alone. `AppPatchInspect` is host-tested (`tests/apppatch_test.c`).
+- When: *Enable* (after the clock), every normal start of DateFix (an application installed again by HotSync has its old code back; the reset launch has no globals and cannot read the table), the *Test* button; *Disable* takes it out. *Prepare Update* leaves it in (same epoch).
+- Applications in ROM cannot be written and keep their internal year.
+- Result line: *Test* appends `apps: n` (n = sites in place).
+
+**Test fixture.** `tools/probes/yearprobe.c` draws `DateType.year + 1904` like Date Book+; `yearfinder` finds its one site (`addiw #1904,%d3`, `StrPrintF`); the table has an entry for it.
+
+**Emulator results** (CloudpilotEmu, start year 1932, clock in real 2026/2054):
+
+| | without the patch | with the patch |
+|---|---|---|
+| Palm m515, OS 4.1, Date Book+ week title | "Sep-Oct 26" (real year 2054) | "Sep-Oct 54" |
+| same, year view | "2026" | "2054" |
+| Tungsten E2, OS 5.4, YearProbe (clock 2026) | "Year: 1998 / 98" | "Year: 2026 / 26", internal 94 untouched |
+| E2, YearProbe after *Disable* | | "Year: 2026", internal 122: the constant is back |
+
+Date Book+ with the patch on the m515, everything else checked in the same session: day title "Oct 1, 54", month "October 2054", two-week title, Go To "2054", event details "Thu 10/1/54", repeat end date "Thu 10/8/54", weekdays right. The remaining 32 unclassified sites showed nothing wrong in these views.
+
+**Date Book+ 3.0H does not start on the Tungsten E2** (Palm OS 5.4): "Fatal Exception", also with DateFix paused. It is the Handspring ROM build; the patch mechanism on Palm OS 5 was therefore confirmed with the probe, not with Date Book+.
+
+**Not done:** the table has one real application; the records of Date Book+ (`Datebk3HDB`) are still not converted; other Date Book+ versions need their own sites (`tools/yearfinder`).
+
+**Fixed on the way:** *Prepare Update* told "years 36 years early" whatever the start year (now the real offset).
+
+## 22. Scenario tests in the Tungsten E2 emulator (OS 5.4, start year 1932)
+
+Done with the build of section 21, CloudpilotEmu with the writable clock (`tools/emulator`). Typing on the host keyboard triggers hardware buttons of the emulated Palm (a letter opened Note Pad, another Preferences); text goes in through the on-screen keyboard.
+
+1. **Default 1932**: DateFix opens with 1932; *Enable* gives "Active: 1932 - 2059"; clock check "Thu 2026-10-01 OK" (weekday right, as expected with offset 28).
+2. **An event from 2025 read with the clock in 2033.** Calendar entry on Sun 15 Jun 2025, created *before* DateFix is enabled; *Enable* converts "2 dates"; Preferences accepts 10/1/33; Calendar shows "Oct 1, 33" and *Go To* 2025-06-15 shows the entry on the Sunday 6/15/25.
+3. **World Clock with the clock in 2033**: "Sat, Oct 1, 2033 9:05 am", Tokyo "Sun 1:05 am", London "Sat 5:05 pm" (+16 h, +8 h).
+4. **A reminder set for 2032 that fires at the rollover.** Entry on Thu 1 Jan 2032 8:00 with an alarm 8 hours before (the alarm time is 2032-01-01 00:00:00); event details say "Thu 1/1/32". *New Year* sets the clock to 2031-12-31 23:59:50; at 12:00 am the *Reminder* dialog appears with "Thursday, 1/1/32, 8:00 am - 9:00 am"; clock check "Thu 1 Jan 2032 00:00:21 OK". *Back* returns to the time before.
+5. The date picker in Preferences, in the Calendar's *Go To* and in the event details works for 2025, 2026, 2032 and 2033 with the right weekdays (e.g. 1 Oct 2033 is a Saturday, 1 Jan 2032 a Thursday).
+
+Not tested: time-dependent games (none installed), any real device, Palm OS 4 for this list.
+
+## 23. Date Book+ on the Handspring Visor (real device, beta.3): not confirmed
+
+DateFix 2.0.0-beta.3 and `DateBk3h` (Date Book+ 3.0H rebuilt from the Visor's ROM, section 21) were HotSynced to a Palm m515 and beamed by infrared to the Visor (Palm OS 3.5.2H3). First report "everything shows right" was **wrong**: the day view is right ("1. Jan 32", through `DateToAscii`), but the week title still reads "Dez 03 - Jan 04", i.e. the internal years 2003/2004 (offset 28: real 2031/2032). The patch did not take effect there. Open: whether the Visor runs the ROM version instead of the RAM copy, or the copy is run but not patched (the *Test* line of that device, "apps: n", is the first thing to look at).
+
+On the m515 (OS 4.1) the RAM copy raises a fatal error from the menu *About Date Book+*. Not yet analysed (the copy is rebuilt from the ROM resources; the cause may be in the rebuild, not in DateFix).
+
+## 24. Date Book+ on the Visor: the ROM version wins, a RAM copy needs its own creator (2.0.0-beta.4-pre2)
+
+The *Test* line on the Visor read `apps: 5, locked: 1`: five sites patched in the RAM copy, one database that could not be written, the ROM version. The Visor ran the ROM version: day and month view right, week, two-week and year view showing the internal year ("Dez 03 - Jan 04", "2004"). A RAM copy of the same name and creator does not take over the launch, not even with a higher database version (version 100, tried the same day).
+
+Fix: `tools/ramcopy/make_ram_copy.py` makes a copy under its own name and creator (`DateBk3x`, `HsDR`, launcher label "DB+ (RAM)"); the table has an entry for it with the same sites. The copy is a second icon in the launcher and runs from RAM, patched. Checked in the Palm m515 emulator (OS 4.1): *Test* `apps: 10` (both RAM copies), "DB+ (RAM)" opens with the entries of the existing `Datebk3HDB` ("Test"), week "Sep-Oct 54", year "2054". **Confirmed on the Visor** (owner's report, 2026-10-01): with `DateBk3x` started from the launcher the week, two-week and year views show the right year; the ROM version stays as it was.
+
+Limits of the copy: it uses the original's databases (the code opens them by its compiled-in creator and name); alarms and the hardware button still start the ROM version, which shows the internal year in the three views. The "About Date Book+" menu crashes on a Palm that is not a Visor (Handspring build), with or without DateFix.
