@@ -6,7 +6,7 @@ Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clo
 
 > **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
-**Download:** [DateFix-2.0.0-beta.4.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
+**Download:** [DateFix-2.0.0-beta.5.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
 
 ## The idea, and credit
 
@@ -61,7 +61,7 @@ The original databases are **not** touched on the card; `/PALM/DateFix` holds co
 
 ## Applications that draw the year themselves
 
-Some applications do not ask the system to format the year, they compute `year + 1904` and draw the result themselves (Date Book+: week, two-week and year view). They show the internal year. DateFix has a small table of such applications (**so far only Date Book+ 3.0H**): it writes the start year into the year constant of their stored code, so they compute the real year. The sites were found with [`tools/yearfinder`](tools/README.md); *Test* shows `apps: n` (sites patched), `other: n` (another version of a known application, not touched) and `locked: n` (database that cannot be written). *Disable* takes the patch out again.
+Some applications do not ask the system to format the year, they compute `year + 1904` and draw the result themselves (Date Book+: week, two-week and year view). They show the internal year. DateFix has a small table of such applications (**so far Date Book+ 3.0H, and TimeCopy 1.4**, whose HotSync sets the clock from the desktop's Unix time): it writes the start year into the year constant of their stored code, so they compute the real year. The sites were found with [`tools/yearfinder`](tools/README.md); *Test* shows `apps: n` (sites patched), `other: n` (another version of a known application, not touched) and `locked: n` (database that cannot be written). *Disable* takes the patch out again.
 
 **An application in ROM cannot be patched**, and a RAM copy of the same name and creator does not take over from it (tried on a Handspring Visor). The way around is a copy under its **own creator**: [`tools/ramcopy/make_ram_copy.py`](tools/ramcopy/make_ram_copy.py) makes it from the application's `.prc` (name `DateBk3x`, creator `HsDR`, launcher name "DB+ (RAM)"; the table already has an entry for it). It shows up as a second icon, runs from RAM, patched, and uses the same appointments. The hardware button and alarms still start the ROM version. **DateFix does not contain Date Book+ and this repository has no copy of it**; you need the `.prc` of version 3.0H yourself. Applications and versions that are not in the table are not changed.
 

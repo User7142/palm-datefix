@@ -369,3 +369,18 @@ The *Test* line on the Visor read `apps: 5, locked: 1`: five sites patched in th
 Fix: `tools/ramcopy/make_ram_copy.py` makes a copy under its own name and creator (`DateBk3x`, `HsDR`, launcher label "DB+ (RAM)"); the table has an entry for it with the same sites. The copy is a second icon in the launcher and runs from RAM, patched. Checked in the Palm m515 emulator (OS 4.1): *Test* `apps: 10` (both RAM copies), "DB+ (RAM)" opens with the entries of the existing `Datebk3HDB` ("Test"), week "Sep-Oct 54", year "2054". **Confirmed on the Visor** (owner's report, 2026-10-01): with `DateBk3x` started from the launcher the week, two-week and year views show the right year; the ROM version stays as it was.
 
 Limits of the copy: it uses the original's databases (the code opens them by its compiled-in creator and name); alarms and the hardware button still start the ROM version, which shows the internal year in the three views. The "About Date Book+" menu crashes on a Palm that is not a Visor (Handspring build), with or without DateFix.
+
+## 25. TimeCopy: the clock jumps by the offset after a HotSync (2.0.0-beta.5-pre1)
+
+Reported on Reddit: a Palm IIIx with TimeCopy showed 9/30/2062 after a HotSync (start year 1940, offset 36). TimeCopy 1.4 (PalmDB, `TimeCopy1.4.zip`, an Inno Setup installer; the handheld part is `timecopy.prc`, creator `TiCo`) has a Windows conduit that writes a database (type `Time`, creator `TiCo`, version 2) with the desktop time as **Unix seconds**, the time zone in minutes, the DST offset and two flags. After the HotSync the application adds `TimDateTimeToSeconds(1 Jan 1970 00:00)` and calls `TimSetSeconds(now + (target - now))`.
+
+The year 1970 in that `DateTimeType` is a *real* year: with a moved epoch it is read as the internal 1970, i.e. the real 1970 + offset, and the clock lands that much later. The fix is the same mechanism as for Date Book+, in the other direction: the constant (`move.w #1970,-4(a6)` at code 1, 0x185e) becomes the internal year of the real 1970, `1970 - offset` (1942 for the start year 1932). `AppPatchSite` now has the opcode and mask, the original constant and a direction (+1 for firstYear 1904, -1 for a real year); a start year after 1970 (1972) cannot represent 1970 and leaves the site alone.
+
+Test without a Windows desktop: `tools/probes/timecopyfeed.c` writes the conduit's database (2026-10-01 16:00:00 UTC) and sends TimeCopy the launch code a HotSync sends (`sysAppLaunchCmdSyncNotify`). Tungsten E2 emulator, start year 1932:
+
+| | clock after TimeCopy's adjustment |
+|---|---|
+| DateFix without the TimeCopy entry | Thu 1 Oct **2054** 16:00:30 (the reported bug, offset 28) |
+| with the entry (*Test*: `apps: 7`) | Thu 1 Oct **2026** 16:00:18, clock check OK |
+
+TimeCopy's own screen then shows "Desktop: Oct 1, 2026 16:00:00", the handheld time before the adjustment (the wrong 2054 of the first run) and a delta of -245448 hours (28 years); its drift statistics are spoilt by that jump and can be cleared (*Clear Stats*). The conduit side is not involved: it only sends Unix time.

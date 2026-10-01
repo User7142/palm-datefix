@@ -29,14 +29,34 @@
 #include <PalmOS.h>
 #else
 #include "types.h"
+#ifndef true
+typedef unsigned char Boolean;
+#define true  1
+#define false 0
+#endif
 #endif
 
 typedef struct
 {
   UInt16 resource;      // 'code' resource id
   UInt32 size;          // exact size of that resource in the version of the table
-  UInt16 offset;        // of the instruction `addi.w #1904,Dn` (0640..0647 0770)
+  UInt16 offset;        // of the instruction; its immediate word follows the opcode
+  UInt16 opcode;        // expected opcode word ...
+  UInt16 opcodeMask;    // ... compared under this mask
+  UInt16 constant;      // the year in the original code
+  Int16  direction;     // +1: constant + offset, -1: constant - offset (see below)
 } AppPatchSite;
+
+/*
+ * Two kinds of year constants:
+ * - firstYear 1904, added to a DateType year to get the year to show: it has
+ *   to become 1904 + offset = the start year (direction +1);
+ * - a *real* year the application converts into clock seconds, e.g. the Unix
+ *   epoch 1970 (TimeCopy): the same moment is the internal year 1970 - offset
+ *   (direction -1).
+ * offset = start year - 1904, a multiple of four (0..68).
+ */
+#define SITE_FIRST_YEAR(res, size, off) { res, size, off, 0x0640, 0xFFF8, 1904, 1 }  // addi.w #1904,Dn
 
 typedef struct
 {
@@ -47,18 +67,24 @@ typedef struct
 } AppPatchApp;
 
 // what a site contains
-#define SITE_ORIGINAL   0       // 1904: not patched
-#define SITE_PATCHED    1       // a start year: patched
+#define SITE_ORIGINAL   0       // the original constant
+#define SITE_PATCHED    1       // moved by a possible offset
 #define SITE_OTHER      2       // other version or other code: not touched
 
 /**
  * Looks at one site of a code resource.
  *
- * @param year  set to the constant found there (1904 or the start year) for
- *              SITE_ORIGINAL and SITE_PATCHED
+ * @param offset  set to the offset the constant there is moved by (0 for
+ *                SITE_ORIGINAL)
  */
 UInt16 AppPatchInspect(const UInt8 *code, UInt32 size, const AppPatchSite *site,
-                       UInt16 *year);
+                       UInt16 *offset);
+
+/**
+ * The constant a site gets for an offset; false if that is no valid year
+ * (a real year before the start of the window, e.g. 1970 with start year 1972).
+ */
+Boolean AppPatchValue(const AppPatchSite *site, UInt16 offset, UInt16 *value);
 
 extern const AppPatchApp kAppPatches[];
 extern const UInt16      kNumAppPatches;
@@ -73,12 +99,13 @@ typedef struct
 } AppPatchStats;
 
 /**
- * Writes the year constant `year` into every known site of the installed
- * applications: the start year to enable, 1904 to take the patches out.
+ * Moves the year constants of every known site of the installed applications
+ * to the epoch of startYear: the start year to enable, 1904 to take the
+ * patches out.
  * Idempotent; run it whenever DateFix starts, an application may have been
  * installed again since.
  */
-void AppPatchSet(UInt16 year, AppPatchStats *stats);
+void AppPatchSet(UInt16 startYear, AppPatchStats *stats);
 #endif
 
 #endif
