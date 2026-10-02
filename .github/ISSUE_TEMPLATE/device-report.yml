@@ -1,0 +1,78 @@
+name: Device report
+description: DateFix on a device that is not confirmed yet – whether it works or not.
+title: "Device report: <device>, Palm OS <version>"
+labels: ["device report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for trying DateFix on your device. Every report – good or bad – helps to fill in the *Tested devices* table.
+        **Do not attach database files** (calendar, contacts …): they contain your personal data.
+  - type: input
+    id: device
+    attributes:
+      label: Device
+      placeholder: e.g. Tungsten T5, Zire 72, Clié NX70V
+    validations:
+      required: true
+  - type: input
+    id: palmos
+    attributes:
+      label: Palm OS version
+      description: Prefs → Info (or the launcher's *Info* menu).
+      placeholder: e.g. 5.4.0
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: DateFix version
+      description: DateFix → Options → About.
+      placeholder: e.g. 2.0.0-beta.5
+    validations:
+      required: true
+  - type: input
+    id: startyear
+    attributes:
+      label: Start year
+      placeholder: e.g. 1932
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works (Enable, Test and the clock check are fine)
+        - Partly works (see below)
+        - Does not work
+    validations:
+      required: true
+  - type: textarea
+    id: testline
+    attributes:
+      label: Test line
+      description: Tap **Test** in DateFix and copy the line it shows.
+      render: text
+  - type: textarea
+    id: clockcheck
+    attributes:
+      label: Clock check
+      description: The *Clock check* lines under the buttons (`OK` or `MISMATCH`).
+      render: text
+  - type: textarea
+    id: trace
+    attributes:
+      label: Show Trace
+      description: Options → Show Trace – what applications passed to the date functions. Especially useful if something looks wrong.
+      render: text
+  - type: textarea
+    id: details
+    attributes:
+      label: What did you try, and what did you see?
+      description: Applications you checked (Calendar, Date Book+, games …), dates after 2031, a reset, a HotSync.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I did not attach database files or other personal data.
+          required: true

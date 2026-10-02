@@ -1,0 +1,51 @@
+name: Bug report
+description: Something went wrong with DateFix – wrong dates, a crash, a conversion problem.
+title: "<short description>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If dates were converted, the copies made *before* converting are on the card in `/PALM/DateFix`.
+        **Do not attach database files**: they contain your personal data.
+  - type: input
+    id: device
+    attributes:
+      label: Device and Palm OS version
+      placeholder: e.g. Tungsten T3, Palm OS 5.2.1
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: DateFix version and start year
+      description: DateFix → Options → About.
+      placeholder: e.g. 2.0.0-beta.5, 1932
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you saw (error message, crash text, wrong date and where).
+    validations:
+      required: true
+  - type: textarea
+    id: testline
+    attributes:
+      label: Test line and clock check
+      description: Tap **Test** in DateFix and copy the line, plus the *Clock check* lines.
+      render: text
+  - type: textarea
+    id: trace
+    attributes:
+      label: Show Trace
+      description: Options → Show Trace, right after the problem showed up.
+      render: text
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I did not attach database files or other personal data.
+          required: true

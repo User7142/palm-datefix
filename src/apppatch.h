@@ -19,7 +19,8 @@
  * Safety: a site is only touched if the code resource has exactly the size
  * of the version the table was made for and the instruction there is the
  * expected one. Applications in ROM cannot be written and keep their years.
- * The sites are found with tools/yearfinder.
+ * The sites are found with tools/yearfinder and listed in apps/apps.txt;
+ * DateFix reads them as data (apptable.h).
  */
 
 #ifndef APPPATCH_H
@@ -58,14 +59,6 @@ typedef struct
  */
 #define SITE_FIRST_YEAR(res, size, off) { res, size, off, 0x0640, 0xFFF8, 1904, 1 }  // addi.w #1904,Dn
 
-typedef struct
-{
-  const char         *name;       // application, for the report
-  UInt32              creator;    // creator id of the 'appl' database
-  const AppPatchSite *sites;
-  UInt16              numSites;
-} AppPatchApp;
-
 // what a site contains
 #define SITE_ORIGINAL   0       // the original constant
 #define SITE_PATCHED    1       // moved by a possible offset
@@ -86,9 +79,6 @@ UInt16 AppPatchInspect(const UInt8 *code, UInt32 size, const AppPatchSite *site,
  */
 Boolean AppPatchValue(const AppPatchSite *site, UInt16 offset, UInt16 *value);
 
-extern const AppPatchApp kAppPatches[];
-extern const UInt16      kNumAppPatches;
-
 #ifndef HOST_TEST
 typedef struct
 {
@@ -96,7 +86,16 @@ typedef struct
   UInt16 unchanged;     // already as wanted
   UInt16 other;         // other version of the application, not touched
   UInt16 locked;        // database could not be opened for writing (ROM)
+  UInt32 table;         // version of the table used, 0: no valid table
+  Boolean tableFromDb;  // from DateFixApps instead of the built-in one
 } AppPatchStats;
+
+/**
+ * Which application table DateFix uses (for Show Trace): the version, and
+ * whether it is DateFixApps instead of the one built into DateFix.
+ * false if there is no valid table.
+ */
+Boolean AppPatchTableInfo(UInt32 *version, Boolean *fromDb);
 
 /**
  * Moves the year constants of every known site of the installed applications

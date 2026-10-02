@@ -384,3 +384,34 @@ Test without a Windows desktop: `tools/probes/timecopyfeed.c` writes the conduit
 | with the entry (*Test*: `apps: 7`) | Thu 1 Oct **2026** 16:00:18, clock check OK |
 
 TimeCopy's own screen then shows "Desktop: Oct 1, 2026 16:00:00", the handheld time before the adjustment (the wrong 2054 of the first run) and a delta of -245448 hours (28 years); its drift statistics are spoilt by that jump and can be cleared (*Clear Stats*). The conduit side is not involved: it only sends Unix time.
+
+## 26. The application table as data (2.0.0-beta.6-pre1)
+
+The sites of the applications that draw the year themselves were a C array (`kAppPatches`), so every new application version meant a new DateFix build and a new release. They are data now, from one source:
+
+- `apps/apps.txt`: one line per site (`site <res> <size> <offset> first-year`, or the long form with opcode, mask, constant and direction), `alias` for the RAM copy of Date Book+, a `table <version>` line (YYYYMMDDnn).
+- `tools/apptable.py` checks the file (creator of four characters, even offsets inside the resource, no creator twice, …) and writes it as the resource `'DFat'` 1000 of DateFix.prc (`build/DFat03e8.bin`; build-prc takes every `build/*.bin` by its name) or as `DateFixApps.pdb` (type `'DFat'`, creator `'DtFx'`, one record).
+- `src/apptable.c` reads it byte by byte (no word access at odd addresses on the 68k). `AppTableCheck` checks the whole table first: magic, format, every application and site inside it, a terminated name, at least one site, nothing left over. A table from a file the user installed is only used after that.
+- `AppPatchSet` takes the valid table with the higher version: the built-in one or `DateFixApps`. *Show Trace* names it.
+- `tools/yearfinder --table NAME CREATOR` prints the `addi.w #1904,Dn` sites it classified as DRAW or CALLDRAW as lines for `apps.txt` (for Date Book+ 3.0H exactly the five sites in the table).
+
+Host test (`tests/apptable_test.c`): the table built from `apps.txt` has the same sites as the C array had; truncated, extended, wrong magic or format, wrong number of applications, an unterminated or empty name, too many or no sites are all rejected.
+
+Emulator (Tungsten E3, Palm OS 5.2, start year 1932, YearProbe installed): *Test* `apps: 1`, *Show Trace* `Table 2026100201 (built in)`; with a `DateFixApps.pdb` of version 2026100299 installed `Table 2026100299 (DateFixApps)`, `apps: 1`; with a truncated `DateFixApps.pdb` (5 bytes cut off) back to `Table 2026100201 (built in)`, `apps: 1`.
+
+## 27. Date Book+ 3.0H keeps its entries in the standard databases (2.0.0-beta.6-pre1)
+
+The roadmap listed `Datebk3HDB`, Date Book+'s own database, as "not converted, format unknown". Before writing a conversion, the emulator showed what is in it:
+
+Palm m515 (OS 4.1), fresh session, Date Book+ 3.0H (`DateBk3h`, from the Visor ROM), started once: `Datebk3HDB` exists, 80 bytes - the header, no records, no appInfo. Then, on 2 Oct 2026: an appointment at 9:00, a floating event, a journal entry (with its text), a To Do, and a template made from the appointment. Backup of all RAM databases from the launcher (CloudpilotEmu cannot back up databases an application holds open):
+
+| Entry | Database | Record |
+|---|---|---|
+| appointment 9:00 - 10:00 | `DatebookDB` | `09000a00 f542 04ea "App"` |
+| floating event | `DatebookDB` | untimed, `f542`, note `##f` (Date Book+ keeps its extras as tags in the note) |
+| journal entry | `DatebookDB` | untimed, `f542`, "Daily Journal", the text as note |
+| template | `DatebookDB` | `09000a00 e821 04fa "App"`: a fixed date, 1 Jan 2020 |
+| To Do | `ToDoDB` | due `f542` |
+
+`f542` is 2 Oct 2026 (year 122 after 1904, month 10, day 2). `Datebk3HDB` still had no records. All of this is in the databases DateFix already converts (the template's fixed date moves with the others; it is not shown). So there is nothing of Date Book+ to convert, and README and roadmap no longer say otherwise. Not tried: archiving deleted items, purging, the other views' settings - one of them may use `Datebk3HDB`.
+

@@ -64,7 +64,6 @@ int main(void)
     CHECK(AppPatchInspect(code, 12, &edge, &off) == SITE_OTHER);
   }
 
-  CHECK(kNumAppPatches >= 1 && kAppPatches[0].numSites >= 1);
   printf("apppatch: %s (%d failures)\n", failures ? "FAILED" : "ok", failures);
   return failures != 0;
 }

@@ -3,55 +3,10 @@
  */
 
 #include "apppatch.h"
-
-#ifdef HOST_TEST
-#define sysFileCApplication 0
+#ifndef HOST_TEST
+#include "apptable.h"
+#include "datefix.h"            // appCreator: DateFixApps belongs to DateFix
 #endif
-
-// Date Book+ 3.0H (Handspring Visor ROM, database "DateBk3h", creator 'HsDB').
-// Found with tools/yearfinder, confirmed in the emulator and on a Visor:
-//  code 3: the year view's title
-//  code 4: the year in the titles of the week and two-week view (four calls
-//          of the function that draws "year / two-digit year")
-static const AppPatchSite kDateBook3h[] =
-{
-  SITE_FIRST_YEAR(3, 35926, 0x1312),
-  SITE_FIRST_YEAR(4, 34960, 0x61da),
-  SITE_FIRST_YEAR(4, 34960, 0x61f8),
-  SITE_FIRST_YEAR(4, 34960, 0x6240),
-  SITE_FIRST_YEAR(4, 34960, 0x627c),
-};
-
-// TimeCopy 1.4 (creator 'TiCo'): its conduit sends the desktop's time as
-// Unix seconds; the application adds TimDateTimeToSeconds(1 Jan 1970), which
-// with a moved epoch is 1970 internal = 1970 + offset real. The year in the
-// DateTimeType it builds (`move.w #1970,-4(a6)`) has to be the internal year
-// of the real 1970.
-static const AppPatchSite kTimeCopy[] =
-{
-  { 1, 8448, 0x185e, 0x3D7C, 0xFFFF, 1970, -1 },
-};
-
-// tools/probes/yearprobe.c, the test fixture for the mechanism on every Palm OS
-static const AppPatchSite kYearProbe[] =
-{
-  SITE_FIRST_YEAR(1, 868, 0x00F0),
-};
-
-#define APP(name, creator, sites) { name, creator, sites, sizeof(sites) / sizeof(sites[0]) }
-
-const AppPatchApp kAppPatches[] =
-{
-  APP("DateBk3h", 'HsDB', kDateBook3h),
-  // the same code under its own name and creator: a copy for a device that has
-  // Date Book+ in ROM, where the ROM version cannot be patched and wins the
-  // launch of the original creator (tools/ramcopy)
-  APP("DateBk3x", 'HsDR', kDateBook3h),
-  APP("TimeCopy", 'TiCo', kTimeCopy),
-  APP("YearProbe", 'YrPb', kYearProbe),
-};
-
-const UInt16 kNumAppPatches = sizeof(kAppPatches) / sizeof(kAppPatches[0]);
 
 UInt16
 AppPatchInspect(const UInt8 *code, UInt32 size, const AppPatchSite *site,
@@ -95,10 +50,110 @@ AppPatchValue(const AppPatchSite *site, UInt16 offset, UInt16 *value)
 
 #ifndef HOST_TEST
 
+/* An application table in use: the built-in resource or the database. */
+typedef struct
+{
+  MemHandle    handle;
+  DmOpenRef    db;              // DateFixApps, NULL for the resource
+  const UInt8 *bytes;
+  UInt32       size;
+  UInt32       version;
+} Table;
+
+static void
+TableClose(Table *t)
+{
+  if (t->handle)
+  {
+    MemHandleUnlock(t->handle);
+    if (!t->db)
+      DmReleaseResource(t->handle);
+  }
+  if (t->db)
+    DmCloseDatabase(t->db);
+  t->handle = NULL;
+  t->db = NULL;
+}
+
+/* Locks h and keeps it if it holds a valid table. */
+static Boolean
+TableTake(Table *t, MemHandle h, DmOpenRef db)
+{
+  UInt16 apps;
+
+  t->handle = h;
+  t->db = db;
+  t->bytes = MemHandleLock(h);
+  t->size = MemHandleSize(h);
+  if (AppTableCheck(t->bytes, t->size, &t->version, &apps))
+    return true;
+  TableClose(t);
+  return false;
+}
+
+/*
+ * Opens the valid table with the higher version: the one built into DateFix
+ * or DateFixApps, if the user installed it. Runs in DateFix's own launch:
+ * DmGet1Resource finds DateFix's resource.
+ */
+static Boolean
+TableOpen(Table *use, Boolean *fromDb)
+{
+  Table builtin = { 0 }, extra = { 0 };
+  Boolean haveBuiltin = false, haveExtra = false;
+  DmSearchStateType state;
+  UInt16 card;
+  LocalID id;
+  DmOpenRef db;
+  MemHandle h;
+
+  h = DmGet1Resource(appTableResType, appTableResID);
+  if (h)
+    haveBuiltin = TableTake(&builtin, h, NULL);
+
+  if (DmGetNextDatabaseByTypeCreator(true, &state, appTableDBType, appCreator,
+                                     true, &card, &id) == errNone && id)
+  {
+    db = DmOpenDatabase(card, id, dmModeReadOnly);
+    if (db)
+    {
+      h = DmNumRecords(db) == 1 ? DmQueryRecord(db, 0) : NULL;
+      if (h)
+        haveExtra = TableTake(&extra, h, db);
+      else
+        DmCloseDatabase(db);
+    }
+  }
+
+  if (haveExtra && (!haveBuiltin || extra.version > builtin.version))
+  {
+    if (haveBuiltin) TableClose(&builtin);
+    *use = extra;
+    *fromDb = true;
+    return true;
+  }
+  if (haveExtra) TableClose(&extra);
+  *use = builtin;
+  *fromDb = false;
+  return haveBuiltin;
+}
+
+Boolean
+AppPatchTableInfo(UInt32 *version, Boolean *fromDb)
+{
+  Table t;
+
+  if (!TableOpen(&t, fromDb))
+    return false;
+  *version = t.version;
+  TableClose(&t);
+  return true;
+}
+
 void
 AppPatchSet(UInt16 startYear, AppPatchStats *stats)
 {
-  UInt16 a, s, card, index;
+  UInt16 a, s, card, index, numApps;
   LocalID id;
   DmSearchStateType state;
   Boolean first;
@@ -107,17 +162,27 @@ AppPatchSet(UInt16 startYear, AppPatchStats *stats)
   UInt8 *code;
   UInt16 current, kind, value, offset = startYear - 1904;
   UInt8 word[2];
+  Table table;
+  UInt32 pos, version;
+  AppTableApp app;
+  AppPatchSite site;
 
   stats->patched = stats->unchanged = stats->other = stats->locked = 0;
+  stats->table = 0;
+  stats->tableFromDb = false;
+  if (!TableOpen(&table, &stats->tableFromDb))
+    return;
+  AppTableCheck(table.bytes, table.size, &version, &numApps);
+  stats->table = version;
 
-  for (a = 0; a < kNumAppPatches; a++)
+  for (a = 0, pos = appTableFirstApp; a < numApps; a++)
   {
-    const AppPatchApp *app = &kAppPatches[a];
+    pos = AppTableReadApp(table.bytes, pos, &app);
 
     for (first = true; ; first = false)
     {
       if (DmGetNextDatabaseByTypeCreator(first, &state, sysFileTApplication,
-                                         app->creator, false, &card, &id) != errNone
+                                         app.creator, false, &card, &id) != errNone
           || !id)
         break;
 
@@ -127,17 +192,16 @@ AppPatchSet(UInt16 startYear, AppPatchStats *stats)
         stats->locked++;
         continue;
       }
-      for (s = 0; s < app->numSites; s++)
+      for (s = 0; s < app.numSites; s++)
       {
-        const AppPatchSite *site = &app->sites[s];
-
-        index = DmFindResource(db, 'code', site->resource, NULL);
+        AppTableReadSite(table.bytes, &app, s, &site);
+        index = DmFindResource(db, 'code', site.resource, NULL);
         if (index == 0xFFFF) { stats->other++; continue; }
         h = DmGetResourceIndex(db, index);
         if (!h) { stats->other++; continue; }
         code = MemHandleLock(h);
-        kind = AppPatchInspect(code, MemHandleSize(h), site, &current);
-        if (kind == SITE_OTHER || !AppPatchValue(site, offset, &value))
+        kind = AppPatchInspect(code, MemHandleSize(h), &site, &current);
+        if (kind == SITE_OTHER || !AppPatchValue(&site, offset, &value))
           stats->other++;
         else if (current == offset)
           stats->unchanged++;
@@ -145,7 +209,7 @@ AppPatchSet(UInt16 startYear, AppPatchStats *stats)
         {
           word[0] = value >> 8;
           word[1] = value & 0xFF;
-          DmWrite(code, site->offset + 2, word, 2);
+          DmWrite(code, site.offset + 2, word, 2);
           stats->patched++;
         }
         MemHandleUnlock(h);
@@ -154,6 +218,7 @@ AppPatchSet(UInt16 startYear, AppPatchStats *stats)
       DmCloseDatabase(db);
     }
   }
+  TableClose(&table);
 }
 
 #endif

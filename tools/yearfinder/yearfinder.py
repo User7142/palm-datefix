@@ -164,6 +164,9 @@ def main():
     ap.add_argument("--json")
     ap.add_argument("--objdump", default=OBJDUMP)
     ap.add_argument("--all", action="store_true", help="also list API/STORE/CMP (default: DRAW, CALLDRAW, LOCAL, OTHER and ? only)")
+    ap.add_argument("--table", nargs=2, metavar=("NAME", "CREATOR"),
+                    help="print the DRAW and CALLDRAW sites as lines for apps/apps.txt "
+                         "(only `addi.w #1904,Dn`; check every site in the application before adding it)")
     a = ap.parse_args()
     data = open(a.prc, "rb").read()
     found = []
@@ -177,7 +180,8 @@ def main():
                 continue
             kind, stores, traps, calls = analyse(ins, index, i, a.window)
             ctx = "".join(y["hex"] for y in ins[max(0, i - 2):i + 3])
-            found.append({"resource": "code %d" % rid, "offset": x["addr"], "insn": x["text"], "kind": kind,
+            found.append({"resource": "code %d" % rid, "res": rid, "size": len(body),
+                          "offset": x["addr"], "insn": x["text"], "kind": kind,
                           "stores_to": stores, "traps_after": traps, "calls": ["0x%x" % c for c in calls], "context_hex": ctx})
     shown = [f for f in found if a.all or f["kind"] in ("DRAW", "CALLDRAW", "LOCAL", "OTHER", "?")]
     counts = {}
@@ -189,6 +193,15 @@ def main():
     print("\n%d sites with 1904: %s" % (len(found), ", ".join("%s %d" % kv for kv in sorted(counts.items()))))
     if a.json:
         json.dump(found, open(a.json, "w"), indent=1)
+    if a.table:
+        # apps.txt "first-year" means addi.w #1904,Dn: other instructions need a
+        # long site line with opcode and mask, written by hand
+        lines = [f for f in found if f["kind"] in ("DRAW", "CALLDRAW")
+                 and re.match(r"addiw#1904,%d[0-7]$", f["insn"].replace(" ", ""))]
+        print("\n# %s (%s), from tools/yearfinder" % tuple(a.table))
+        print("app %s %s" % tuple(a.table))
+        for f in lines:
+            print("site %d %d 0x%04x first-year    # %s" % (f["res"], f["size"], f["offset"], f["kind"]))
 
 
 if __name__ == "__main__":

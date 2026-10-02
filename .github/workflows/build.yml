@@ -1,0 +1,106 @@
+# Tests on every push, DateFix.prc built with the same toolchain as on the
+# developer's Mac, and the release asset built here instead of by hand.
+#
+# Pinned inputs (change them together with a check that the build still
+# matches): palmdev-macos for the Palm OS SDK, the prc-tools-remix compilers
+# (m68k-palmos-gcc 2.95.3, arm-palmos-gcc 3.3.1, build-prc) and pilrc 3.2.
+# pilrc is built from source because 3.2 reads BMP headers with `long` fields,
+# which are 8 bytes on 64-bit hosts (fixed below, see tools/README.md).
+name: Build and test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PALMDEV_REPO: User7142/palmdev-macos
+  PALMDEV_REF: 095d42a9aee2ba56757315c344e7d63c3c482781
+  PRC_TOOLS_URL: https://github.com/savaughn/prc-tools-remix/releases/download/macos-arm/prc-tools-remix-macos-arm64.tar.gz
+  PRC_TOOLS_SHA256: a11d4ff69c30018ce0045e90e75fe93ec91f68655ad82092467c597e5bc47845
+  PILRC_URL: https://downloads.sourceforge.net/project/pilrc/pilrc/3.2/pilrc-3.2.tar.gz
+  PILRC_SHA256: f3d6ea3c77f5d2a00707f4372a212377ab7bd77b3d68c3db7e28a553b235903f
+
+jobs:
+  test:
+    name: Host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: make test (calendar arithmetic, record conversion, application patches)
+        run: make test
+
+  build:
+    name: DateFix.prc
+    runs-on: macos-14   # Apple Silicon, like the prebuilt toolchain
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Palm OS SDK (palmdev-macos)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.PALMDEV_REPO }}
+          ref: ${{ env.PALMDEV_REF }}
+          path: palmdev
+
+      - name: Compilers (prc-tools-remix)
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/prc-tools.tar.gz" "$PRC_TOOLS_URL"
+          echo "$PRC_TOOLS_SHA256  $RUNNER_TEMP/prc-tools.tar.gz" | shasum -a 256 -c
+          mkdir -p palmdev/toolchain
+          tar -xzf "$RUNNER_TEMP/prc-tools.tar.gz" -C palmdev/toolchain --strip-components=1
+
+      - name: pilrc 3.2 with the 64-bit BMP fix
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/pilrc.tar.gz" "$PILRC_URL"
+          echo "$PILRC_SHA256  $RUNNER_TEMP/pilrc.tar.gz" | shasum -a 256 -c
+          mkdir -p "$RUNNER_TEMP/pilrc-src" "$RUNNER_TEMP/pilrc-build"
+          tar -xzf "$RUNNER_TEMP/pilrc.tar.gz" -C "$RUNNER_TEMP/pilrc-src" --strip-components=1
+          sed -i '' -E '72,79s/^  long /  int /' "$RUNNER_TEMP/pilrc-src/bitmap.c"
+          cd "$RUNNER_TEMP/pilrc-build"
+          # only the program: "make install" fails on palette files missing from the 3.2 tarball
+          CFLAGS="-O2 -Wno-implicit-function-declaration -Wno-int-conversion" \
+            "$RUNNER_TEMP/pilrc-src/unix/configure"
+          make pilrc
+
+      - name: Release tag matches VERSION
+        if: github.event_name == 'release'
+        run: |
+          test "v$(cat VERSION)" = "${{ github.event.release.tag_name }}" || {
+            echo "VERSION $(cat VERSION) does not match tag ${{ github.event.release.tag_name }}"; exit 1; }
+
+      - name: make
+        run: make PALMDEV="$GITHUB_WORKSPACE/palmdev" PILRC="$RUNNER_TEMP/pilrc-build/pilrc"
+
+      - name: Checksum
+        run: shasum -a 256 build/DateFix.prc | tee build/DateFix.prc.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DateFix-${{ github.sha }}
+          path: |
+            build/DateFix.prc
+            build/DateFix.prc.sha256
+          if-no-files-found: error
+
+  release:
+    name: Attach to the release
+    if: github.event_name == 'release'
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: DateFix-${{ github.sha }}
+      - name: Upload DateFix.prc
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" DateFix.prc --clobber --repo "${{ github.repository }}"

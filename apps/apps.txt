@@ -1,0 +1,54 @@
+# DateFix application table
+#
+# Applications that compute a year themselves (not through the system's date
+# functions) and the places in their code where DateFix writes the start year.
+# tools/apptable.py turns this file into the table that is built into
+# DateFix.prc and, for updates without a new DateFix build, into
+# DateFixApps.pdb (install it like an application; DateFix uses the newer one).
+#
+# Lines:
+#   table <version>           YYYYMMDDnn, raise it with every change
+#   app <name> <creator>      starts an application: database name and creator
+#   alias <name> <creator>    the same code under another name and creator
+#                             (gets the sites of the app above it)
+#   site <res> <size> <offset> first-year
+#                             `addi.w #1904,Dn` in 'code' <res> of exactly
+#                             <size> bytes at <offset> (hex): 1904 becomes
+#                             the start year
+#   site <res> <size> <offset> <opcode> <mask> <constant> <+1|-1>
+#                             any other immediate word: the instruction word
+#                             must match <opcode> under <mask> (hex), the
+#                             immediate is <constant>; +1 adds the offset
+#                             (a year to show), -1 subtracts it (a real year
+#                             that becomes clock seconds)
+#
+# A site is only written if the resource has exactly <size> bytes and the
+# instruction is the expected one; any other version is left alone and
+# counted as "other". Sites are found with tools/yearfinder.
+
+table 2026100201
+
+# Date Book+ 3.0H (Handspring Visor ROM). Confirmed in the emulator and on a Visor.
+#   code 3: the year view's title
+#   code 4: the year in the titles of the week and two-week view (four calls of
+#           the function that draws "year / two-digit year")
+app DateBk3h HsDB
+site 3 35926 0x1312 first-year
+site 4 34960 0x61da first-year
+site 4 34960 0x61f8 first-year
+site 4 34960 0x6240 first-year
+site 4 34960 0x627c first-year
+# A copy for a device that has Date Book+ in ROM: the ROM version cannot be
+# patched and wins the launch of the original creator (tools/ramcopy).
+alias DateBk3x HsDR
+
+# TimeCopy 1.4: its conduit sends the desktop's time as Unix seconds; the
+# application adds TimDateTimeToSeconds(1 Jan 1970), which with a moved epoch is
+# 1970 internal = 1970 + offset real. The year in the DateTimeType it builds
+# (`move.w #1970,-4(a6)`) has to be the internal year of the real 1970.
+app TimeCopy TiCo
+site 1 8448 0x185e 0x3d7c 0xffff 1970 -1
+
+# tools/probes/yearprobe.c: the test fixture for the mechanism on every Palm OS
+app YearProbe YrPb
+site 1 868 0x00f0 first-year

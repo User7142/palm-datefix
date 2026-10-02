@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Article about DateFix (background, how it works)
+    url: https://palm2000.com/articles/49
+    about: Read this first if you want to know how the date window is moved.

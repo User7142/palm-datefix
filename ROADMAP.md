@@ -11,8 +11,8 @@ What is not done yet, roughly in order.
 
 ## Known gaps
 
-- **Applications that draw the year themselves.** DateFix patches the year constant of the applications in its table (so far Date Book+ 3.0H, fix log sections 21, 24); every other application and version shows the internal year until its sites are found with `tools/yearfinder` and added. The 32 sites of Date Book+ that the scanner could not classify are unchecked. A ROM application needs a RAM copy under its own creator (`tools/ramcopy`); the hardware button and alarms still start the ROM version. Planned: more versions (Pimlico DateBk3/4/5, Palm OS 5 builds), a table that is data instead of code.
-- **Other databases**: Date Book+'s own database `Datebk3HDB`, Note Pad, Voice Memo and third-party calendars are not converted (record formats unknown).
+- **Applications that draw the year themselves.** DateFix patches the year constant of the applications in its table (so far Date Book+ 3.0H, fix log sections 21, 24); every other application and version shows the internal year until its sites are found with `tools/yearfinder` and added. The 32 sites of Date Book+ that the scanner could not classify are unchecked. A ROM application needs a RAM copy under its own creator (`tools/ramcopy`); the hardware button and alarms still start the ROM version. Planned: more versions (Pimlico DateBk3/4/5, Palm OS 5 builds); the table is data now (`apps/apps.txt`, `DateFixApps.pdb`), so they need no new DateFix build.
+- **Other databases**: Note Pad, Voice Memo and third-party calendars are not converted (record formats unknown). Date Book+ 3.0H needs nothing extra: its entries are in the standard databases; what it keeps in `Datebk3HDB` (empty so far) is open – e.g. archived items were not tried.
 - **Palm OS below 3.5** (Palm III 3.0/3.3, Palm V 3.1): no `DateTemplateToAscii`, different date picker.
 - **Desktop HotSync** transfers internal dates.
 

@@ -32,7 +32,7 @@ BUILDPRC = $(TOOLS)/bin/build-prc
 
 ARMOBJS  = build/datefix_arm.o build/calendar_arm.o
 
-.PHONY: all test clean
+.PHONY: all test clean apps
 
 all: build/DateFix.prc
 
@@ -67,8 +67,21 @@ build/datefix.o: src/datefix.c src/datefix.h src/convert.h build/armc_offsets.h
 build/convert.o: src/convert.c src/convert.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
 
-build/apppatch.o: src/apppatch.c src/apppatch.h
+build/apppatch.o: src/apppatch.c src/apppatch.h src/apptable.h src/datefix.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
+
+build/apptable.o: src/apptable.c src/apptable.h src/apppatch.h
+	$(CC68K) $(CFLAGS68K) -c $< -o $@
+
+# the application table (apps/apps.txt) as resource 'DFat' 1000; build-prc
+# takes every build/*.bin by its name
+build/DFat03e8.bin: apps/apps.txt tools/apptable.py | build
+	python3 tools/apptable.py apps/apps.txt --resource $@
+
+# the same table as a database, to update the table without a new DateFix
+apps: build/DateFixApps.pdb
+build/DateFixApps.pdb: apps/apps.txt tools/apptable.py | build
+	python3 tools/apptable.py apps/apps.txt --pdb $@
 
 build/selectday.o: src/selectday.c src/selectday.h src/datefix.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
@@ -83,7 +96,7 @@ build/m68k.o: src/m68k.c src/m68k.h src/calendar.h src/types.h
 	$(CC68K) $(CFLAGS68K) -c $< -o $@
 
 OBJS68K = build/datefix.o build/convert.o build/selectday.o build/clockcheck.o \
-	  build/calendar_68k.o build/m68k.o build/apppatch.o
+	  build/calendar_68k.o build/m68k.o build/apppatch.o build/apptable.o
 
 build/datefix: $(OBJS68K) tools/check_reset_path.py
 	$(CC68K) $(CFLAGS68K) $(OBJS68K) -o $@
@@ -106,15 +119,20 @@ build/.resources: src/datefix.rcp src/datefix.h build/datefix.armc build/version
 	$(PILRC) -q -I src -I build src/datefix.rcp build
 	touch $@
 
-build/DateFix.prc: build/datefix build/.resources
+build/DateFix.prc: build/datefix build/.resources build/DFat03e8.bin
 	$(BUILDPRC) -o $@ -t appl -c DtFx -n DateFix build/datefix build/*.bin
 
-test: test-calendar test-convert test-apppatch
+test: test-calendar test-convert test-apppatch test-apptable
 
-.PHONY: test-calendar test-convert test-apppatch
+.PHONY: test-calendar test-convert test-apppatch test-apptable
 test-apppatch:
 	/usr/bin/clang -O2 -Wall -DHOST_TEST -Isrc src/apppatch.c tests/apppatch_test.c -o tests/apppatch_test
 	./tests/apppatch_test
+
+test-apptable:
+	python3 tools/apptable.py apps/apps.txt --resource tests/apptable.bin
+	/usr/bin/clang -O2 -Wall -DHOST_TEST -Isrc src/apptable.c tests/apptable_test.c -o tests/apptable_test
+	./tests/apptable_test tests/apptable.bin
 
 test-convert:
 	/usr/bin/clang -O2 -Wall -DHOST_TEST -Isrc src/convert.c tests/convert_test.c -o tests/convert_test
@@ -125,4 +143,4 @@ test-calendar:
 	./tests/dump | python3 tests/check.py
 
 clean:
-	rm -rf build tests/dump tests/convert_test tests/apppatch_test
+	rm -rf build tests/dump tests/convert_test tests/apppatch_test tests/apptable_test tests/apptable.bin

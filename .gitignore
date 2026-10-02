@@ -6,3 +6,5 @@ tests/convert_test
 .DS_Store
 tests/apppatch_test
 __pycache__/
+tests/apptable_test
+tests/apptable.bin

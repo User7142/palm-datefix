@@ -1404,6 +1404,22 @@ ShowTrace(void)
     if (n == 0)
       StrCopy(text, "No date call before the last picker call.");
   }
+  {
+    // which application table is in use: a bug report needs it
+    UInt32  version;
+    Boolean fromDb;
+    UInt16  len = StrLen(text);
+
+    if (len > 0 && text[len - 1] != '\n')
+      text[len++] = '\n', text[len] = chrNull;
+    if (len + 40 < sizeof(text))
+    {
+      if (AppPatchTableInfo(&version, &fromDb))
+        StrPrintF(text + len, "Table %lu (%s)", version, fromDb ? "DateFixApps" : "built in");
+      else
+        StrCopy(text + len, "No application table");
+    }
+  }
   FrmCustomAlert(traceAlert, text, "", "");
 }
 
