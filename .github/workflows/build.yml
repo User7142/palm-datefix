@@ -100,7 +100,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: DateFix-${{ github.sha }}
-      - name: Upload DateFix.prc
+      # named like the releases before: DateFix-<version>.prc, with its checksum
+      - name: Upload DateFix-<version>.prc
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" DateFix.prc --clobber --repo "${{ github.repository }}"
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          prc="DateFix-${TAG#v}.prc"
+          mv DateFix.prc "$prc"
+          sha256sum "$prc" > "$prc.sha256"
+          gh release upload "$TAG" "$prc" "$prc.sha256" --clobber --repo "${{ github.repository }}"
