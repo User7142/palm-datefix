@@ -12,7 +12,9 @@ SDK      = $(PALMDEV)/sdk/sdk-4
 PILRC    ?= $(HOME)/tools/pilrc-3.2-64bit/bin/pilrc
 export GCC_EXEC_PREFIX = $(TOOLS)/lib/gcc-lib/
 
-SDKINCS  := $(addprefix -I,$(shell find $(SDK)/include -type d))
+# only where the SDK is: "make test" needs no Palm OS headers (and the CI's
+# test runner has none)
+SDKINCS  := $(if $(wildcard $(SDK)/include),$(addprefix -I,$(shell find $(SDK)/include -type d)))
 
 CC68K    = $(TOOLS)/bin/m68k-palmos-gcc
 CFLAGS68K = -O2 -Wall -nostdinc \

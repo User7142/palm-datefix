@@ -19,7 +19,7 @@ int main(void)
 {
   static UInt8 code[64];
   const AppPatchSite first = SITE_FIRST_YEAR(3, sizeof(code), 10);
-  const AppPatchSite unix = { 1, sizeof(code), 20, 0x3D7C, 0xFFFF, 1970, -1 };
+  const AppPatchSite unixEpoch = { 1, sizeof(code), 20, 0x3D7C, 0xFFFF, 1970, -1 };
   UInt16 off = 99, v = 0;
 
   memset(code, 0x4E, sizeof(code));
@@ -47,17 +47,17 @@ int main(void)
 
   // a real year: move.w #1970,-4(a6), moved down
   put(code + 20, 0x3D7C, 1970);
-  CHECK(AppPatchInspect(code, sizeof(code), &unix, &off) == SITE_ORIGINAL && off == 0);
-  CHECK(AppPatchValue(&unix, 28, &v) && v == 1942);                            // start 1932
-  CHECK(AppPatchValue(&unix, 36, &v) && v == 1934);                            // start 1940
-  CHECK(AppPatchValue(&unix, 64, &v) && v == 1906);                            // start 1968
-  CHECK(!AppPatchValue(&unix, 68, &v));                                        // start 1972: 1970 is before it
+  CHECK(AppPatchInspect(code, sizeof(code), &unixEpoch, &off) == SITE_ORIGINAL && off == 0);
+  CHECK(AppPatchValue(&unixEpoch, 28, &v) && v == 1942);                            // start 1932
+  CHECK(AppPatchValue(&unixEpoch, 36, &v) && v == 1934);                            // start 1940
+  CHECK(AppPatchValue(&unixEpoch, 64, &v) && v == 1906);                            // start 1968
+  CHECK(!AppPatchValue(&unixEpoch, 68, &v));                                        // start 1972: 1970 is before it
   put(code + 20, 0x3D7C, 1942);
-  CHECK(AppPatchInspect(code, sizeof(code), &unix, &off) == SITE_PATCHED && off == 28);
+  CHECK(AppPatchInspect(code, sizeof(code), &unixEpoch, &off) == SITE_PATCHED && off == 28);
   put(code + 20, 0x3D7C, 1998);                                                // moved the wrong way
-  CHECK(AppPatchInspect(code, sizeof(code), &unix, &off) == SITE_OTHER);
+  CHECK(AppPatchInspect(code, sizeof(code), &unixEpoch, &off) == SITE_OTHER);
   put(code + 20, 0x3D7D, 1970);                                                // other opcode
-  CHECK(AppPatchInspect(code, sizeof(code), &unix, &off) == SITE_OTHER);
+  CHECK(AppPatchInspect(code, sizeof(code), &unixEpoch, &off) == SITE_OTHER);
 
   {
     const AppPatchSite edge = SITE_FIRST_YEAR(3, 12, 10);                     // offset + 4 beyond the end
