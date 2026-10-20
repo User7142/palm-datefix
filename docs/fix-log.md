@@ -415,3 +415,26 @@ Palm m515 (OS 4.1), fresh session, Date Book+ 3.0H (`DateBk3h`, from the Visor R
 
 `f542` is 2 Oct 2026 (year 122 after 1904, month 10, day 2). `Datebk3HDB` still had no records. All of this is in the databases DateFix already converts (the template's fixed date moves with the others; it is not shown). So there is nothing of Date Book+ to convert, and README and roadmap no longer say otherwise. Not tried: archiving deleted items, purging, the other views' settings - one of them may use `Datebk3HDB`.
 
+
+## 28. LifeDrive: the shims reach the veneer through an interworking stub (2.0.0-beta.7-pre1)
+
+On a LifeDrive (Palm OS 5.4.3, ROM `05403017`, device `TunX`) Enable reported *Unknown ROM layout: trap A0FC*. Nothing had been converted: `CanInstall` checks every function first.
+
+`tools/probes/shimprobe.c` follows each trap the way `FindExport` does, shows the result per trap and writes stub, shim and every callee to `/PALM/DateFix/shimdump.bin` (the first volume: the LifeDrive's internal drive, read in Drive Mode). Stubs and shims were where they should be (`A0FC` → shim `0x2031BC35`), but no shim called anything with `blx`: every call was a `bl`. The shim of `TimSecondsToDateTime` is the same as on the E2 except for the call itself:
+
+```
+2031bc4e  bl    0x20341fb4                 ; the function
+20341fb4  bx    pc                         ; Thumb -> ARM
+20341fb6  nop
+20341fb8  b     0x203412cc                 ; ARM: to the veneer
+```
+
+The ROM was linked without `BLX`: a `bl` goes to a Thumb-to-ARM interworking stub, which branches to the veneer. DateFix read `bx pc` as the end of a function and found no veneer. Each of the eight shims calls exactly one such stub; the targets lie 8 bytes apart, as veneers do.
+
+`DecodeThumbStub` (`src/datefix.c`) accepts a `bl` target that is word-aligned, starts with `BX PC; NOP` and continues in ARM with the veneer or a `B` to it; the veneer is then checked by `DecodeVeneer` as before. Anything else is still not patched.
+
+On the LifeDrive (ShimProbe with the same logic): all eight found, `A0FC` m1 #587, `A25F` #59, `A261` #58, `A266` #55, `A267` #57, `A3CD` #54 - the same Boot exports as on the T3 and the E2 - plus `A2D0` m2 #268 and `A0C9` m1 #484. DateFix 2.0.0-beta.7-pre1, start year 1972: enabled (*Active: 1972 - 2099*); *New Year* set the clock to 2031-12-31 23:59:50, the status bar went to 0:00 and the clock check read *Palm OS: Do 1 Jan 2032 00:00:15* / *DateFix: Thu 2032-01-01 OK*.
+
+The first ShimProbe also dumped what followed the first return and crashed on it (data read as calls, pointing outside the ROM); it now stops there like DateFix. `VFSFileSeek` to the end of a file returns `vfsErrFileEOF`, which is not an error.
+
+*Test* then said *Self test passed, picker: no 0000A2D0*: DateFix had not found `SelectDay`, which ShimProbe had (m2 #268). DateFix scanned at most 64 halfwords (128 bytes) of a function, ShimProbe 256 bytes. The LifeDrive's `SelectDay` shim marshals its arguments itself instead of in a shared core (T3, E2) and is 190 bytes long; its call is at byte 138. The scan ends at the function's return; the bound (`SCAN_HALFWORDS`) only stops a scan that finds none and is 128 halfwords now (2.0.0-beta.7-pre2). On the LifeDrive (2.0.0-beta.7-pre2, after *Prepare Update* and a HotSync): *Self test passed, picker ok*, clock check *Di 20 Okt 2026* / *Tue 2026-10-20 OK*; the Calendar's month view shows October 2026 with 1 October on a Thursday and today (Tuesday the 20th) marked.

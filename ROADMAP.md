@@ -5,7 +5,7 @@ What is not done yet, roughly in order.
 ## Needs a device or a report
 
 - **Scenario tests on a real device.** In the Tungsten E2 emulator (Palm OS 5.4, start year 1932) these ran: a reminder set for 2032 that fires at the 2031 / 2032 rollover, an event from 2025 read with the clock in 2033, the World Clock in 2033 (docs/fix-log.md, section 22). Not run on a device, and not run at all: time-dependent games.
-- **Other Palm OS 5 devices** (T5, TX, LifeDrive, Zire 31/72, Clié NX/UX): expected to work, not confirmed. See *Tested devices* in the README.
+- **Other Palm OS 5 devices** (T5, TX, Zire 31/72, Clié NX/UX): expected to work, not confirmed (the LifeDrive needed a decoder change, fix log section 28: other ROMs may differ the same way). See *Tested devices* in the README.
 - **Rollover on an m515** with the clock running (the emulator's Dragonball clock cannot be set like the Tungsten E2's).
 - **Backup on a real card** (`/PALM/DateFix`) on both Palm OS generations.
 

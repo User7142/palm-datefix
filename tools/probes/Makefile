@@ -11,7 +11,7 @@ CC68K    = $(TOOLS)/bin/m68k-palmos-gcc -O2 -Wall -nostdinc \
 CCARM    = $(TOOLS)/bin/arm-palmos-gcc -O2 -marm -mno-apcs-frame -fomit-frame-pointer \
 	   -ffixed-r9 -nostdlib -nostartfiles -B$(TOOLS)/lib/gcc-lib/arm-palmos/3.3.1/ \
 	   -B$(TOOLS)/arm-palmos/bin/
-all: ExportProbe.prc FormProbe.prc YearProbe.prc TimeCopyFeed.prc
+all: ExportProbe.prc FormProbe.prc YearProbe.prc TimeCopyFeed.prc ShimProbe.prc
 ExportProbe.prc: exportprobe.c exportprobe_arm.c
 	mkdir -p out
 	$(CCARM) -Wl,-e,Read -Wl,-Ttext,0 exportprobe_arm.c -o out/arm.elf
@@ -21,7 +21,7 @@ ExportProbe.prc: exportprobe.c exportprobe_arm.c
 	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/probe.rcp out
 	$(TOOLS)/bin/build-prc -o $@ -t appl -c ExPb -n ExportProbe out/exportprobe out/*.bin
 clean:
-	rm -rf out ExportProbe.prc FormProbe.prc YearProbe.prc TimeCopyFeed.prc
+	rm -rf out ExportProbe.prc FormProbe.prc YearProbe.prc TimeCopyFeed.prc ShimProbe.prc
 
 FormProbe.prc: formprobe.c
 	mkdir -p out/form
@@ -43,3 +43,10 @@ TimeCopyFeed.prc: timecopyfeed.c
 	printf 'APPLICATIONICONNAME ID 1000 "TcFeed"\n' > out/tcfeed/probe.rcp
 	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/tcfeed/probe.rcp out/tcfeed
 	$(TOOLS)/bin/build-prc -o $@ -t appl -c TcFd -n TimeCopyFeed out/tcfeed/timecopyfeed out/tcfeed/*.bin
+
+ShimProbe.prc: shimprobe.c
+	mkdir -p out/shim
+	$(CC68K) shimprobe.c -o out/shim/shimprobe
+	printf 'APPLICATIONICONNAME ID 1000 "ShimProbe"\n' > out/shim/probe.rcp
+	$(HOME)/tools/pilrc-3.2-64bit/bin/pilrc -q out/shim/probe.rcp out/shim
+	$(TOOLS)/bin/build-prc -o $@ -t appl -c ShPb -n ShimProbe out/shim/shimprobe out/shim/*.bin

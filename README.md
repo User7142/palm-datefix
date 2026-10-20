@@ -4,9 +4,9 @@
 
 Palm OS stops its calendar on **31 December 2031, 23:59:59**. After that the clock resets, the Calendar cannot go forward, and appointments in 2032 crash applications. DateFix moves the start of Palm OS's date counting from 1904 to a year you choose (default **1932**), so a Palm keeps a real, working calendar and clock for another 128 years (**1932 – 2059**).
 
-> **Status: beta.** Verified on a Tungsten T3, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
+> **Status: beta.** Verified on a Tungsten T3, a LifeDrive, a Palm m515 and in emulators; see [Tested devices](#tested-devices) and [Known limitations](#known-limitations). Please read [Before you start](#before-you-start).
 
-**Download:** [DateFix-2.0.0-beta.5.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
+**Download:** [DateFix-2.0.0-beta.7.prc](https://github.com/User7142/palm-datefix/releases/latest) &nbsp;|&nbsp; **Article** with photos, the measurements and every dead end: [DateFix: Keeping a Palm Alive After December 31st, 2031](https://palm2000.com/articles/49)
 
 ## The idea, and credit
 
@@ -72,12 +72,13 @@ The table is data, not code: [`apps/apps.txt`](apps/apps.txt) lists every applic
 | Device | Palm OS | Result |
 |---|---|---|
 | Tungsten T3 | 5.2.1 | works: rollover 2031 → 2032, Calendar both ways, date picker, reset |
+| LifeDrive | 5.4.3 | works from 2.0.0-beta.7: rollover 2031 → 2032, self test with date picker, Calendar month view, clock check OK (its ROM reaches the date functions through interworking stubs, see [fix log](docs/fix-log.md), section 28) |
 | Palm m515 | 4.1 | works: conversion, soft reset keeps the patch |
 | Tungsten E2 (emulator) | 5.4 | works |
 | Palm m515 (emulator) | 4.1 | works |
 | Handspring Visor | 3.5.2H3 | Date Book works; Date Book+ 3.0H: the ROM version shows the internal year in week, two-week and year view; a RAM copy under its own creator (launcher entry "DB+ (RAM)", see `tools/ramcopy`) shows the right year in every view (confirmed by the owner of the device) |
 
-**Help wanted:** T5, TX, LifeDrive, Zire, Clié and everything else is *expected* to work (the export table entries are located by decoding the ROM, nothing is hard-coded; DateFix patches nothing if it cannot find them), but it is not confirmed. If you try it, please report: device, Palm OS version, the self test line, the clock check line and *Show Trace*.
+**Help wanted:** T5, TX, Zire, Clié and everything else is *expected* to work (the export table entries are located by decoding the ROM, nothing is hard-coded; DateFix patches nothing if it cannot find them), but it is not confirmed. If you try it, please report: device, Palm OS version, the self test line, the clock check line and *Show Trace*.
 
 ## Known limitations
 

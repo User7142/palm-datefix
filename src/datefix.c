@@ -240,10 +240,43 @@ DecodeVeneer(const UInt8 *p, UInt32 *module, UInt32 *index)
 }
 
 /**
- * Counts the veneers called by a Thumb function (blx to an ARM veneer) and
- * returns the last one found. A `bl` to another Thumb function is followed
- * for `depth` more levels: some shims (SelectDay) marshal their arguments
- * in a shared core that makes the call.
+ * Checks for a Thumb-to-ARM interworking stub in front of the veneer:
+ * BX PC; NOP; then in ARM code the veneer itself or a B to it. ROMs built
+ * without BLX (LifeDrive: `bl` to the stub, the stub branches to the
+ * veneer) reach the veneer this way.
+ */
+static Boolean
+DecodeThumbStub(const UInt8 *p, UInt32 *module, UInt32 *index)
+{
+  UInt32 w;
+  Int32  offset;
+
+  if (((UInt32)p & 3) || (ReadLE16(p) != 0x4778) || (ReadLE16(p + 2) != 0x46C0))
+    return false;
+  p += 4;
+  w = ReadLE32(p);
+  if ((w & 0xFF000000UL) == 0xEA000000UL)                  // b veneer
+  {
+    offset = (Int32)(w & 0x00FFFFFFUL);
+    if (offset & 0x00800000L) offset -= 0x01000000L;
+    p += 8 + 4 * offset;
+  }
+  return DecodeVeneer(p, module, index);
+}
+
+/*
+ * A function is scanned up to its return; this bound only stops a scan
+ * that finds none. The longest shim seen is SelectDay on the LifeDrive
+ * (190 bytes, its call at byte 138 - the T3 and the E2 call a shared core).
+ */
+#define SCAN_HALFWORDS  128
+
+/**
+ * Counts the veneers called by a Thumb function (blx to an ARM veneer, or
+ * bl to an interworking stub in front of one) and returns the last one
+ * found. Any other `bl` to a Thumb function is followed for `depth` more
+ * levels: some shims (SelectDay) marshal their arguments in a shared core
+ * that makes the call.
  */
 static UInt16
 ScanForVeneers(const UInt8 *pc, UInt16 depth, UInt32 *module, UInt32 *index)
@@ -252,7 +285,7 @@ ScanForVeneers(const UInt8 *pc, UInt16 depth, UInt32 *module, UInt32 *index)
   UInt16 hi, lo, n, found = 0;
   Int32  offset;
 
-  for (n = 0; n < 64; n++, pc += 2)
+  for (n = 0; n < SCAN_HALFWORDS; n++, pc += 2)
   {
     hi = ReadLE16(pc);
 
@@ -281,6 +314,12 @@ ScanForVeneers(const UInt8 *pc, UInt16 depth, UInt32 *module, UInt32 *index)
         found++;
       }
     }
+    else if (DecodeThumbStub((const UInt8 *)target, &m, &i))  // bl: stub
+    {
+      *module = m;
+      *index  = i;
+      found++;
+    }
     else if (depth > 0)                                     // bl: Thumb core
       found += ScanForVeneers((const UInt8 *)target, depth - 1, module, index);
   }
@@ -290,7 +329,8 @@ ScanForVeneers(const UInt8 *pc, UInt16 depth, UInt32 *module, UInt32 *index)
 /**
  * Finds the export table entry behind a trap: the trap points to a PACE
  * stub (TRAP #15, 0x07FE, native address), the native address to a Thumb
- * shim that marshals the 68k arguments and calls exactly one veneer.
+ * shim that marshals the 68k arguments and calls exactly one veneer
+ * (directly, or through an interworking stub: DecodeThumbStub).
  */
 static Boolean
 FindExport(UInt16 trap, UInt32 *module, UInt32 *index)
